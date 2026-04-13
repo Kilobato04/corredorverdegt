@@ -35,7 +35,7 @@ const MAP_CONFIG = {
 const VARIABLES = {
     'noise_avg': {
         label: 'Ruido',
-        unit: 'dB',
+        unit: 'dBa',
         icon: '🔊',
         colorScale: [
             { max: 50, color: '#00e400', label: 'Silencioso' },
