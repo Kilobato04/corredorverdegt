@@ -135,7 +135,8 @@ class CorredorVerdeApp {
                 `<b>${varConfig.icon} %{y:.1f} ${varConfig.unit}</b><br>` +
                 '%{x|%d %b %Y  %H:%M}<br>' +
                 '<extra></extra>',
-            name: varConfig.label
+            name: varConfig.label,
+            showlegend: false
         };
 
         // Vertical marker line (current position)
@@ -167,7 +168,8 @@ class CorredorVerdeApp {
         const layout = {
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
-            margin: { t: 8, r: 10, b: 36, l: 38 },
+            margin: { t: 8, r: 8, b: 48, l: 36 },
+            showlegend: false,
             font: { family: 'Segoe UI, sans-serif', size: 10, color: '#94a3b8' },
             xaxis: {
                 type: 'date',
@@ -178,15 +180,15 @@ class CorredorVerdeApp {
                 zeroline: false,
                 showgrid: true,
                 nticks: 6,
-                hoverformat: '%d %b %Y %H:%M'
+                hoverformat: '%d %b %Y %H:%M',
+                title: { text: `${varConfig.icon} ${varConfig.label} (${varConfig.unit})`, font: { size: 9, color: '#64748b' }, standoff: 6 }
             },
             yaxis: {
                 gridcolor: 'rgba(45,55,72,0.4)',
                 linecolor: 'rgba(45,55,72,0.6)',
                 tickfont: { size: 9, color: '#64748b' },
                 zeroline: false,
-                showgrid: true,
-                title: { text: varConfig.unit, font: { size: 9, color: '#64748b' } }
+                showgrid: true
             },
             shapes: [markerLine],
             hoverlabel: {
