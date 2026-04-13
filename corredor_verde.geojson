@@ -1,0 +1,99 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Corredor Verde Guatemala",
+        "description": "Eje principal del proyecto Corredor Verde",
+        "length_km": 3.2,
+        "status": "Propuesta",
+        "zones": ["Zona 10", "Zona 14", "Zona 15"]
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-90.562000, 14.608000],
+          [-90.560500, 14.610000],
+          [-90.559000, 14.612000],
+          [-90.557500, 14.614000],
+          [-90.556407, 14.615641],
+          [-90.555000, 14.617000],
+          [-90.553500, 14.619000],
+          [-90.552000, 14.621000],
+          [-90.550500, 14.623000],
+          [-90.549000, 14.625000]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zona de Intervención Norte",
+        "type": "intervention_zone"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-90.563000, 14.607500],
+            [-90.560000, 14.607500],
+            [-90.560000, 14.610500],
+            [-90.563000, 14.610500],
+            [-90.563000, 14.607500]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zona de Intervención Central",
+        "type": "intervention_zone"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-90.557500, 14.614000],
+            [-90.554500, 14.614000],
+            [-90.554500, 14.617000],
+            [-90.557500, 14.617000],
+            [-90.557500, 14.614000]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zona de Intervención Sur",
+        "type": "intervention_zone"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-90.551000, 14.622500],
+            [-90.548000, 14.622500],
+            [-90.548000, 14.625500],
+            [-90.551000, 14.625500],
+            [-90.551000, 14.622500]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Estación SMAA_002",
+        "type": "monitoring_station",
+        "device_id": "SMAA_002"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-90.556407, 14.615641]
+      }
+    }
+  ]
+}
