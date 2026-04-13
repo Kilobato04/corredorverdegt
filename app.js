@@ -38,9 +38,31 @@ class CorredorVerdeApp {
             minZoom: MAP_CONFIG.minZoom,
             maxZoom: MAP_CONFIG.maxZoom
         });
-        L.tileLayer(MAP_CONFIG.tileLayer, {
+
+        // Base layers
+        const darkLayer = L.tileLayer(MAP_CONFIG.tileLayer, {
             attribution: MAP_CONFIG.attribution
+        });
+
+        const satelliteLayer = L.tileLayer(
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '&copy; <a href="https://www.esri.com/">Esri</a> | Smability',
+            maxZoom: 19
+        });
+
+        // Add dark as default
+        darkLayer.addTo(this.map);
+
+        // Layer control
+        const baseMaps = {
+            '🌑 Dark': darkLayer,
+            '🛰️ Satélite': satelliteLayer
+        };
+        L.control.layers(baseMaps, null, {
+            position: 'topright',
+            collapsed: true
         }).addTo(this.map);
+
         L.control.zoom({ position: 'topright' }).addTo(this.map);
     }
 
