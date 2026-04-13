@@ -156,12 +156,23 @@ function getRadiusForValue(variable, value) {
     const varConfig = VARIABLES[variable];
     if (!varConfig) return 10;
     
+    // CASO ESPECIAL: Ruido necesita rango más amplio y visible
+    if (variable === 'noise_avg') {
+        // Ruido típicamente 40-90 dB
+        if (value < 45) return 6;   // Muy silencioso
+        if (value < 55) return 10;  // Silencioso
+        if (value < 65) return 16;  // Moderado
+        if (value < 75) return 24;  // Ruidoso
+        if (value < 85) return 30;  // Muy ruidoso
+        return 35;                   // Extremo
+    }
+    
     const scales = varConfig.colorScale;
     const maxValue = scales[scales.length - 2].max; // Penúltimo valor antes de Infinity
     
-    // Normalizar el valor entre 8 y 30 píxeles
+    // Normalizar el valor entre 8 y 25 píxeles para otras variables
     const normalized = Math.min(value / maxValue, 1);
-    return 8 + (normalized * 22);
+    return 8 + (normalized * 17);
 }
 
 // GeoJSON del Corredor Verde (será cargado dinámicamente)
