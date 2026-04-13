@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌿 Corredor Verde Guatemala - Monitor Ambiental</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <button id="menu-toggle" class="menu-toggle" aria-label="Abrir Menú">
+        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+    </button>
+
+    <div class="main-container">
+        <div id="info-panel" class="info-column">
+            
+            <div class="header panel-section">
+                <div class="header-title-container">
+                    <h1 class="main-title">🌿 Corredor Verde</h1>
+                    <span class="location-badge">Ciudad de Guatemala</span>
+                </div>
+                <div id="last-update" class="update-info">Sincronizando...</div>
+            </div>
+
+            <div class="audit-card panel-section">
+                <h3>📊 Estado Actual - SMAA_002</h3>
+                <div class="audit-grid">
+                    <div class="audit-item">
+                        <span class="label">AQI:</span>
+                        <span id="current-aqi" class="value">--</span>
+                    </div>
+                    <div class="audit-item">
+                        <span class="label">Categoría:</span>
+                        <span id="current-category" class="value">--</span>
+                    </div>
+                    <div class="audit-item">
+                        <span class="label">Ruido:</span>
+                        <span id="current-noise" class="value">--</span>
+                    </div>
+                    <div class="audit-item">
+                        <span class="label">Temp:</span>
+                        <span id="current-temp" class="value">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loading-overlay" class="loading panel-section">
+                <div class="spinner"></div>Obteniendo datos históricos...
+            </div>
+
+            <div id="controls-area" class="controls-section panel-section" style="display: none;">
+                
+                <div class="control-group">
+                    <label class="control-label">Variable a Visualizar</label>
+                    <select id="variable-selector" class="control-select">
+                        <option value="noise_avg">🔊 Ruido (dB)</option>
+                        <option value="pm25_avg">💨 PM2.5 (µg/m³)</option>
+                        <option value="pm10_avg">💨 PM10 (µg/m³)</option>
+                        <option value="o3_avg">🌫️ Ozono (µg/m³)</option>
+                        <option value="co_avg">⚠️ CO (µg/m³)</option>
+                        <option value="temperature_avg">🌡️ Temperatura (°C)</option>
+                        <option value="humidity_avg">💧 Humedad (%)</option>
+                        <option value="aqi">📈 AQI</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Periodo Histórico</label>
+                    <select id="period-selector" class="control-select">
+                        <option value="7">Últimos 7 días</option>
+                        <option value="10" selected>Últimos 10 días</option>
+                        <option value="20">Últimos 20 días</option>
+                    </select>
+                </div>
+
+                <div class="time-control">
+                    <div class="time-header">
+                        <div class="time-info">
+                            <span id="current-datetime" class="datetime-display">--</span>
+                            <span id="timezone-badge" class="badge">UTC-6</span>
+                        </div>
+                        <button id="play-btn" class="play-btn">▶</button>
+                    </div>
+                    
+                    <div class="slider-container">
+                        <input type="range" id="time-slider" min="0" max="100" value="0" step="1">
+                        <div class="slider-labels">
+                            <span id="slider-start">--</span>
+                            <span id="slider-end">--</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="panel-legend-container panel-section">
+                <div class="map-legend-title">ESCALA DE CALIDAD DEL AIRE (AQI)</div>
+                <div class="legend-grid">
+                    <div class="legend-item"><span class="dot" style="background: #00e400;"></span> Buena (0-50)</div>
+                    <div class="legend-item"><span class="dot" style="background: #ffff00;"></span> Moderada (51-100)</div>
+                    <div class="legend-item"><span class="dot" style="background: #ff7e00;"></span> Insalubre SG (101-150)</div>
+                    <div class="legend-item"><span class="dot" style="background: #ff0000;"></span> Insalubre (151-200)</div>
+                    <div class="legend-item"><span class="dot" style="background: #8f3f97;"></span> Muy Insalubre (201-300)</div>
+                    <div class="legend-item"><span class="dot purpura pulse-map-marker" style="background: #7e0023;"></span> Peligrosa (>300)</div>
+                </div>
+            </div>
+
+            <div class="social-footer panel-section">
+                <a href="https://x.com/SmabilityMX" target="_blank" aria-label="X">
+                    <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                </a>
+                <a href="https://www.linkedin.com/company/smability" target="_blank" aria-label="LinkedIn">
+                    <svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                </a>
+                <a href="mailto:info@smability.io" aria-label="Email">
+                    <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                </a>
+            </div>
+        </div>
+
+        <div class="map-column">
+            <div id="map-container"></div>
+        </div>
+    </div>
+
+    <script src="constants.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
