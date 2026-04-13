@@ -422,6 +422,31 @@ body {
     background: #1a2332; 
 }
 
+/* Estilos para las capas del Corredor Verde */
+.corridor-line {
+    stroke: #10b981;
+    stroke-width: 6;
+    stroke-opacity: 0.9;
+    stroke-dasharray: 10, 5;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6));
+}
+
+.intervention-zone {
+    fill: #10b981;
+    fill-opacity: 0.15;
+    stroke: #10b981;
+    stroke-width: 2;
+    stroke-opacity: 0.6;
+}
+
+.monitoring-station-marker {
+    fill: #f59e0b;
+    stroke: #fff;
+    stroke-width: 2;
+    filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.8));
+}
+
 /* 11. RESPONSIVE */
 @media (max-width: 1024px) {
     .info-column { width: 320px; flex: 0 0 320px; }
