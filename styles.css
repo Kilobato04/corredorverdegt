@@ -322,7 +322,59 @@ body {
     100% { transform: rotate(360deg); } 
 }
 
-/* 8. LEYENDA */
+/* 8. PLOTLY CHART SECTION */
+.chart-section {
+    background: linear-gradient(145deg, #1a2332, #0f1419);
+    border-radius: 12px;
+    border: 1px solid #2d3748;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    padding: 14px;
+    position: relative;
+}
+
+.chart-header {
+    margin-bottom: 10px;
+}
+
+.chart-header h3 {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: #10b981;
+    letter-spacing: 0.8px;
+    font-weight: 600;
+}
+
+#plotly-chart {
+    width: 100%;
+    height: 200px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.chart-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 215px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(15, 20, 25, 0.95);
+    border: 1px solid #38bdf8;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.72rem;
+    color: #e2e8f0;
+    pointer-events: none;
+    z-index: 10;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px);
+}
+
+.chart-tooltip.visible {
+    display: block;
+}
+
+/* 9. LEYENDA (legacy) */
 .panel-legend-container {
     background: rgba(10, 22, 40, 0.8); 
     border-top: 1px solid #2d3748; 
@@ -372,13 +424,13 @@ body {
     100% { transform: scale(1); opacity: 1; } 
 }
 
-/* 9. FOOTER SOCIAL */
+/* 10. FOOTER SOCIAL — íconos más pequeños */
 .social-footer {
     display: flex; 
     justify-content: center; 
     align-items: center; 
-    gap: 15px;
-    padding: 15px 0; 
+    gap: 12px;
+    padding: 12px 0; 
     margin-top: auto; 
     border-top: 1px solid #2d3748;
 }
@@ -387,16 +439,16 @@ body {
     display: flex; 
     align-items: center; 
     justify-content: center;
-    width: 38px; 
-    height: 38px; 
+    width: 30px; 
+    height: 30px; 
     background: rgba(45, 55, 72, 0.6);
     border-radius: 50%; 
     transition: all 0.3s ease;
 }
 
 .social-footer a svg { 
-    width: 18px; 
-    height: 18px; 
+    width: 14px; 
+    height: 14px; 
     fill: #94a3b8; 
 }
 
@@ -410,7 +462,7 @@ body {
     fill: #fff; 
 }
 
-/* 10. LEAFLET CUSTOMIZATION */
+/* 11. LEAFLET CUSTOMIZATION */
 .leaflet-popup-content-wrapper { 
     background: #1a2332; 
     color: #e2e8f0; 
@@ -422,7 +474,6 @@ body {
     background: #1a2332; 
 }
 
-/* Estilos para las capas del Corredor Verde */
 .corridor-line {
     stroke: #10b981;
     stroke-width: 6;
@@ -447,7 +498,7 @@ body {
     filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.8));
 }
 
-/* 11. RESPONSIVE */
+/* 12. RESPONSIVE */
 @media (max-width: 1024px) {
     .info-column { width: 320px; flex: 0 0 320px; }
     .info-column.collapsed { margin-left: -320px; }
@@ -478,5 +529,8 @@ body {
     }
     .legend-grid {
         grid-template-columns: 1fr;
+    }
+    #plotly-chart {
+        height: 160px;
     }
 }
