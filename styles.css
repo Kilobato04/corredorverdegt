@@ -1,0 +1,457 @@
+/* =========================================================
+   Corredor Verde Guatemala - CSS Consolidado
+   Jerarquía: Reset -> Layout -> Components -> Responsive
+========================================================= */
+
+/* 1. RESET & BASICS */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background: #0a1628; 
+    color: #e2e8f0; 
+    overflow: hidden; 
+}
+
+/* 2. ESTRUCTURA PRINCIPAL */
+.main-container { 
+    display: flex; 
+    height: 100vh; 
+    width: 100%; 
+    overflow: hidden; 
+}
+
+.info-column { 
+    width: 380px; 
+    flex: 0 0 380px; 
+    background: linear-gradient(180deg, #1a2332 0%, #0f1419 100%);
+    border-right: 1px solid #2d3748; 
+    display: flex; 
+    flex-direction: column; 
+    overflow-y: auto; 
+    box-shadow: 4px 0 20px rgba(0,0,0,0.6);
+    z-index: 100;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    font-size: 0.85rem;
+}
+
+.info-column.collapsed { margin-left: -380px; }
+
+.map-column { flex: 1; position: relative; }
+#map-container { width: 100%; height: 100%; z-index: 1; background: #0a1628; }
+
+/* 3. BOTÓN DE MENÚ */
+.menu-toggle {
+    position: fixed; top: 15px; left: 15px; z-index: 2000;
+    background: rgba(26, 35, 50, 0.95); border: 1px solid #38bdf8; color: #38bdf8;
+    width: 48px; height: 48px; border-radius: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3); 
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+.menu-toggle:hover { 
+    background: rgba(56, 189, 248, 0.2); 
+    transform: scale(1.08); 
+    box-shadow: 0 6px 20px rgba(56, 189, 248, 0.5);
+}
+
+/* 4. SECCIONES DEL PANEL */
+.panel-section { margin-bottom: 20px; padding: 0 15px; }
+.panel-section:last-child { margin-bottom: 0; }
+
+/* Header */
+.header {
+    padding: 20px 20px 20px 70px; 
+    text-align: center; 
+    background: linear-gradient(135deg, #1e3a8a 0%, #065f46 100%);
+    border-bottom: 2px solid #10b981;
+    position: relative;
+}
+.header::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 95, 70, 0.05) 100%);
+    pointer-events: none;
+}
+.header-title-container {
+    display: flex; 
+    flex-direction: column;
+    align-items: center; 
+    gap: 8px; 
+    margin-bottom: 8px;
+    position: relative;
+}
+.main-title { 
+    font-size: 1.4rem; 
+    color: #f0fdf4; 
+    margin: 0; 
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.location-badge {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    color: #d1fae5;
+    backdrop-filter: blur(5px);
+}
+.update-info { 
+    font-size: 0.75rem; 
+    color: #cbd5e1; 
+    background: rgba(0,0,0,0.3); 
+    padding: 5px 12px; 
+    border-radius: 14px; 
+    display: inline-block;
+    position: relative;
+}
+
+/* Cards */
+.audit-card {
+    background: linear-gradient(145deg, #1a2332, #0f1419);
+    padding: 18px; 
+    border-radius: 12px; 
+    border: 1px solid #2d3748;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+}
+
+.audit-card h3 {
+    font-size: 0.9rem; 
+    text-transform: uppercase; 
+    color: #10b981;
+    margin-bottom: 15px; 
+    letter-spacing: 0.8px;
+    font-weight: 600;
+}
+
+.audit-grid { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 12px; 
+}
+
+.audit-item {
+    display: flex; 
+    flex-direction: column; 
+    background: rgba(0,0,0,0.3);
+    padding: 10px; 
+    border-radius: 8px; 
+    border: 1px solid rgba(56, 189, 248, 0.1);
+}
+.audit-item .label { 
+    font-size: 0.7rem; 
+    color: #94a3b8; 
+    margin-bottom: 4px; 
+}
+.audit-item .value { 
+    font-size: 1.15rem; 
+    font-weight: 700; 
+    color: #38bdf8; 
+}
+
+/* 5. CONTROLES */
+.controls-section {
+    background: rgba(26, 35, 50, 0.6);
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid #2d3748;
+}
+
+.control-group {
+    margin-bottom: 16px;
+}
+
+.control-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.control-select {
+    width: 100%;
+    background: rgba(15, 20, 25, 0.8);
+    color: #e2e8f0;
+    border: 1px solid #38bdf8;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.control-select:hover {
+    background: rgba(26, 35, 50, 0.9);
+    border-color: #0ea5e9;
+}
+
+.control-select:focus {
+    outline: none;
+    border-color: #0ea5e9;
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+/* 6. TIEMPO Y SLIDER */
+.time-control {
+    background: rgba(15, 20, 25, 0.5);
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.time-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.time-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.datetime-display {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #f0fdf4;
+}
+
+.badge {
+    background: #065f46;
+    color: #d1fae5;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    display: inline-block;
+    font-weight: 600;
+}
+
+.play-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3);
+}
+
+.play-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 15px rgba(16, 185, 129, 0.5);
+}
+
+.slider-container {
+    margin-top: 10px;
+}
+
+#time-slider {
+    width: 100%;
+    height: 6px;
+    border-radius: 5px;
+    background: linear-gradient(to right, #1e293b, #334155);
+    outline: none;
+    cursor: pointer;
+}
+
+#time-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #10b981;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+    transition: all 0.2s;
+}
+
+#time-slider::-webkit-slider-thumb:hover {
+    background: #059669;
+    transform: scale(1.2);
+}
+
+#time-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #10b981;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+}
+
+.slider-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 0.7rem;
+    color: #64748b;
+}
+
+/* 7. LOADING */
+.loading { 
+    padding: 40px 20px; 
+    text-align: center; 
+    color: #cbd5e1; 
+}
+
+.spinner { 
+    width: 40px; 
+    height: 40px; 
+    border: 4px solid rgba(16, 185, 129, 0.2); 
+    border-top: 4px solid #10b981; 
+    border-radius: 50%; 
+    animation: spin 1s linear infinite; 
+    margin: 0 auto 15px; 
+}
+
+@keyframes spin { 
+    100% { transform: rotate(360deg); } 
+}
+
+/* 8. LEYENDA */
+.panel-legend-container {
+    background: rgba(10, 22, 40, 0.8); 
+    border-top: 1px solid #2d3748; 
+    border-bottom: 1px solid #2d3748;
+    padding: 15px 18px;
+}
+
+.map-legend-title { 
+    font-weight: 700; 
+    margin-bottom: 12px; 
+    color: #10b981; 
+    text-transform: uppercase; 
+    font-size: 0.75rem; 
+    letter-spacing: 0.8px;
+}
+
+.legend-grid { 
+    display: grid; 
+    grid-template-columns: 1fr 1fr; 
+    gap: 10px; 
+    font-size: 0.7rem; 
+    color: #cbd5e1; 
+}
+
+.legend-item { 
+    display: flex; 
+    align-items: center; 
+}
+
+.dot { 
+    height: 14px; 
+    width: 14px; 
+    border-radius: 50%; 
+    display: inline-block; 
+    margin-right: 8px; 
+    border: 1px solid rgba(255,255,255,0.3); 
+    box-shadow: 0 0 6px rgba(0,0,0,0.3);
+}
+
+.pulse-map-marker {
+    animation: pulse-emergency 1.5s infinite;
+}
+
+@keyframes pulse-emergency { 
+    0% { transform: scale(1); opacity: 1; } 
+    50% { transform: scale(1.3); opacity: 0.7; } 
+    100% { transform: scale(1); opacity: 1; } 
+}
+
+/* 9. FOOTER SOCIAL */
+.social-footer {
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    gap: 15px;
+    padding: 15px 0; 
+    margin-top: auto; 
+    border-top: 1px solid #2d3748;
+}
+
+.social-footer a {
+    display: flex; 
+    align-items: center; 
+    justify-content: center;
+    width: 38px; 
+    height: 38px; 
+    background: rgba(45, 55, 72, 0.6);
+    border-radius: 50%; 
+    transition: all 0.3s ease;
+}
+
+.social-footer a svg { 
+    width: 18px; 
+    height: 18px; 
+    fill: #94a3b8; 
+}
+
+.social-footer a:hover { 
+    background: #10b981; 
+    transform: translateY(-3px); 
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.social-footer a:hover svg { 
+    fill: #fff; 
+}
+
+/* 10. LEAFLET CUSTOMIZATION */
+.leaflet-popup-content-wrapper { 
+    background: #1a2332; 
+    color: #e2e8f0; 
+    border: 1px solid #38bdf8;
+    border-radius: 8px;
+}
+
+.leaflet-popup-tip { 
+    background: #1a2332; 
+}
+
+/* 11. RESPONSIVE */
+@media (max-width: 1024px) {
+    .info-column { width: 320px; flex: 0 0 320px; }
+    .info-column.collapsed { margin-left: -320px; }
+}
+
+@media (max-width: 768px) {
+    .map-column { 
+        height: 100vh; 
+        width: 100%; 
+        position: absolute; 
+        top: 0; 
+        left: 0; 
+        z-index: 1; 
+    }
+    .info-column {
+        position: absolute; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        max-height: 90vh;
+        z-index: 1500; 
+        transform: translateY(0); 
+        margin-left: 0 !important;
+        transition: transform 0.4s ease;
+    }
+    .info-column.collapsed { 
+        transform: translateY(-100%); 
+    }
+    .legend-grid {
+        grid-template-columns: 1fr;
+    }
+}
