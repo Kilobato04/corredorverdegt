@@ -57,21 +57,61 @@ class CorredorVerdeApp {
         console.log("🗺️ Mapa inicializado");
     }
 
-    drawCorridor() {
+    async drawCorridor() {
         if (this.corridorLayer) {
             this.map.removeLayer(this.corridorLayer);
         }
         
-        this.corridorLayer = L.geoJSON(CORREDOR_VERDE_GEOJSON, {
-            style: {
-                color: '#10b981',
-                weight: 5,
-                opacity: 0.8,
-                dashArray: '10, 5'
-            }
-        }).addTo(this.map);
-        
-        console.log("🛣️ Corredor Verde dibujado");
+        try {
+            // Intentar cargar el archivo GeoJSON real
+            const response = await fetch('eje_corredor_verde.geojson');
+            const geojsonData = await response.json();
+            
+            this.corridorLayer = L.geoJSON(geojsonData, {
+                style: function(feature) {
+                    // Estilo diferenciado por tipo de geometría
+                    if (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') {
+                        return {
+                            color: '#10b981',
+                            weight: 6,
+                            opacity: 0.9,
+                            dashArray: '10, 5',
+                            lineCap: 'round'
+                        };
+                    } else if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
+                        return {
+                            color: '#10b981',
+                            weight: 2,
+                            opacity: 0.6,
+                            fillColor: '#10b981',
+                            fillOpacity: 0.15
+                        };
+                    }
+                },
+                onEachFeature: function(feature, layer) {
+                    if (feature.properties && feature.properties.name) {
+                        layer.bindPopup(`<b>${feature.properties.name}</b>`);
+                    }
+                }
+            }).addTo(this.map);
+            
+            console.log("🛣️ Corredor Verde cargado desde archivo externo");
+        } catch (error) {
+            console.warn("⚠️ No se pudo cargar eje_corredor_verde.geojson, usando geometría de respaldo");
+            
+            // Fallback al GeoJSON incluido en constants.js
+            this.corridorLayer = L.geoJSON(CORREDOR_VERDE_GEOJSON, {
+                style: {
+                    color: '#10b981',
+                    weight: 6,
+                    opacity: 0.9,
+                    dashArray: '10, 5',
+                    lineCap: 'round'
+                }
+            }).addTo(this.map);
+            
+            console.log("🛣️ Corredor Verde dibujado (geometría de respaldo)");
+        }
     }
 
     async loadHistoricalData() {
@@ -293,7 +333,7 @@ class CorredorVerdeApp {
                 }
                 
                 this.updateVisualization(nextIndex);
-            }, 1000); // 1 segundo por frame
+            }, 200); // 200ms = 5x más rápido (5 horas/segundo, 20 días en ~67 segundos)
         }
     }
 
