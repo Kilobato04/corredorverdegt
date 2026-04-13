@@ -354,14 +354,13 @@ body {
 .chart-tooltip {
     display: none;
     position: absolute;
-    bottom: 215px;
-    left: 50%;
-    transform: translateX(-50%);
+    top: 42px;
+    right: 14px;
     background: rgba(15, 20, 25, 0.95);
     border: 1px solid #38bdf8;
     border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 0.72rem;
+    padding: 6px 10px;
+    font-size: 0.68rem;
     color: #e2e8f0;
     pointer-events: none;
     z-index: 10;
