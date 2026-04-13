@@ -73,7 +73,7 @@ const VARIABLES = {
     },
     'o3_avg': {
         label: 'Ozono',
-        unit: 'µg/m³',
+        unit: 'ppb',
         icon: '🌫️',
         colorScale: [
             { max: 54, color: '#00e400', label: 'Buena' },
@@ -86,7 +86,7 @@ const VARIABLES = {
     },
     'co_avg': {
         label: 'Monóxido de Carbono',
-        unit: 'µg/m³',
+        unit: 'ppb',
         icon: '⚠️',
         colorScale: [
             { max: 4400, color: '#00e400', label: 'Buena' },
@@ -158,19 +158,16 @@ function getRadiusForValue(variable, value) {
     
     // CASO ESPECIAL: Ruido necesita rango más amplio y visible
     if (variable === 'noise_avg') {
-        // Ruido típicamente 40-90 dB
-        if (value < 45) return 6;   // Muy silencioso
-        if (value < 55) return 10;  // Silencioso
-        if (value < 65) return 16;  // Moderado
-        if (value < 75) return 24;  // Ruidoso
-        if (value < 85) return 30;  // Muy ruidoso
-        return 35;                   // Extremo
+        if (value < 45) return 6;
+        if (value < 55) return 10;
+        if (value < 65) return 16;
+        if (value < 75) return 24;
+        if (value < 85) return 30;
+        return 35;
     }
     
     const scales = varConfig.colorScale;
-    const maxValue = scales[scales.length - 2].max; // Penúltimo valor antes de Infinity
-    
-    // Normalizar el valor entre 8 y 25 píxeles para otras variables
+    const maxValue = scales[scales.length - 2].max;
     const normalized = Math.min(value / maxValue, 1);
     return 8 + (normalized * 17);
 }
