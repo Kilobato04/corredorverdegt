@@ -27,6 +27,12 @@ class CorredorVerdeApp {
         this.isPlaying = false;
         this.playInterval = null;
         this.currentVariable = 'noise_avg';
+        this.view3d = false;
+        this.map3d = null;
+        this.map3dReady = false;
+        this.buildings3d = [];
+        this.dome3dRadius = 0;
+        this.pulseRAF = null;
         this.plotlyChart = null;
         this.chartTimestamps = [];
         this.chartValues = [];
@@ -728,13 +734,18 @@ class CorredorVerdeApp {
         on('sel-clear', () => { this.selectedDays.clear(); this.applySelection(); });
 
         on('play-btn', () => this.togglePlay());
+        const vt = document.getElementById('view-toggle');
+        if (vt) vt.addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if (b && (b.dataset.view === '3d') !== this.view3d) this.toggle3D();
+        });
 
         const menuBtn = document.getElementById('menu-toggle');
         const infoPanel = document.getElementById('info-panel');
         if (menuBtn && infoPanel) {
             menuBtn.addEventListener('click', () => {
                 infoPanel.classList.toggle('collapsed');
-                setTimeout(() => { this.map.invalidateSize(); }, 300);
+                setTimeout(() => { this.map.invalidateSize(); if (this.map3d) this.map3d.resize(); }, 300);
             });
         }
     }
@@ -813,6 +824,7 @@ class CorredorVerdeApp {
         `);
 
         this.highlightClockHour(this.convertToGuatemalaTime(data.hour_timestamp_utc).getUTCHours());
+        this.update3D(data);
     }
 
     // ==================================================
@@ -939,6 +951,247 @@ class CorredorVerdeApp {
             : `Ninguno supera ${this.threshold.text} en la selección`;
         el.innerHTML = head + `<ol class="pk-list">${list}</ol><div class="pk-foot">${foot}</div>`;
         el.classList.toggle('collapsed', !!this.peaksCollapsed);
+    }
+
+    // ==================================================
+    // VISTA 3D (Mapbox GL JS): domo de ruido + edificios alcanzados + pulso en picos
+    // Para las demás variables: columna 3D (altura y color según el valor)
+    // ==================================================
+    toggle3D() {
+        this.view3d = !this.view3d;
+        document.body.classList.toggle('is-3d', this.view3d);
+        const btn = document.getElementById('view-toggle');
+        if (btn) btn.querySelectorAll('button').forEach(b => b.classList.toggle('active', (b.dataset.view === '3d') === this.view3d));
+        if (this.view3d) {
+            if (!this.map3d) this.init3D();
+            else this.map3d.resize();
+            const d = this.historicalData[this.currentDataIndex];
+            if (d) this.update3D(d);
+        } else {
+            this.stopPulse();
+        }
+    }
+
+    init3D() {
+        if (!window.mapboxgl) {
+            this.set3DNote('No se pudo cargar Mapbox GL JS.');
+            return;
+        }
+        mapboxgl.accessToken = MAPBOX_TOKEN;
+        const m = new mapboxgl.Map({
+            container: 'map3d',
+            style: VIEW3D.style,
+            center: [SENSOR_LOCATION.lon, SENSOR_LOCATION.lat],
+            zoom: VIEW3D.zoom, pitch: VIEW3D.pitch, bearing: VIEW3D.bearing,
+            antialias: true
+        });
+        this.map3d = m;
+        m.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-right');
+        m.on('error', e => console.warn('Mapbox 3D:', e && e.error && e.error.message));
+
+        m.on('load', () => {
+            const labelLayer = (m.getStyle().layers || []).find(l => l.type === 'symbol' && l.layout && l.layout['text-field']);
+            const before = labelLayer ? labelLayer.id : undefined;
+
+            // Edificios base (gris)
+            m.addLayer({
+                id: 'bld-base', source: 'composite', 'source-layer': 'building', type: 'fill-extrusion',
+                filter: ['==', 'extrude', 'true'], minzoom: 14,
+                paint: {
+                    'fill-extrusion-color': '#2a3a55',
+                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-base': ['get', 'min_height'],
+                    'fill-extrusion-opacity': 0.9
+                }
+            }, before);
+
+            // Edificios alcanzados por el domo (naranja)
+            m.addSource('bld-hit', { type: 'geojson', data: this.emptyFC() });
+            m.addLayer({
+                id: 'bld-hit', source: 'bld-hit', type: 'fill-extrusion',
+                paint: {
+                    'fill-extrusion-color': '#f97316',
+                    'fill-extrusion-height': ['+', ['get', 'height'], 0.5],
+                    'fill-extrusion-base': ['get', 'min_height'],
+                    'fill-extrusion-opacity': 0.95
+                }
+            }, before);
+
+            // Domo / columna del sensor
+            m.addSource('sensor-shape', { type: 'geojson', data: this.emptyFC() });
+            m.addLayer({
+                id: 'sensor-shape', source: 'sensor-shape', type: 'fill-extrusion',
+                paint: {
+                    'fill-extrusion-color': ['get', 'color'],
+                    'fill-extrusion-height': ['get', 'top'],
+                    'fill-extrusion-base': ['get', 'base'],
+                    'fill-extrusion-opacity': 0.38
+                }
+            });
+
+            // Pulso (anillo en el suelo)
+            m.addSource('pulse', { type: 'geojson', data: this.emptyFC() });
+            m.addLayer({
+                id: 'pulse', source: 'pulse', type: 'line',
+                paint: { 'line-color': '#ef4444', 'line-width': 3, 'line-opacity': ['get', 'op'] }
+            });
+
+            // Corredor (si existe el GeoJSON)
+            fetch('eje_corredor_verde.geojson').then(r => r.json()).catch(() => CORREDOR_VERDE_GEOJSON).then(g => {
+                if (!g || m.getSource('corridor')) return;
+                m.addSource('corridor', { type: 'geojson', data: g });
+                m.addLayer({ id: 'corridor', source: 'corridor', type: 'line',
+                    paint: { 'line-color': '#10b981', 'line-width': 4, 'line-dasharray': [2, 1] } }, 'sensor-shape');
+            });
+
+            // Etiqueta del valor sobre el sensor
+            const el = document.createElement('div');
+            el.className = 'lbl3d';
+            this.label3d = new mapboxgl.Marker({ element: el, anchor: 'bottom', offset: [0, -6] })
+                .setLngLat([SENSOR_LOCATION.lon, SENSOR_LOCATION.lat]).addTo(m);
+
+            // Los edificios visibles se leen al terminar cada movimiento de cámara
+            m.on('idle', () => this.cacheBuildings());
+            m.on('moveend', () => this.cacheBuildings());
+
+            this.map3dReady = true;
+            const d = this.historicalData[this.currentDataIndex];
+            if (d) this.update3D(d);
+        });
+    }
+
+    emptyFC() { return { type: 'FeatureCollection', features: [] }; }
+
+    // Distancia aproximada en metros (suficiente a escala de barrio)
+    metersBetween(lon1, lat1, lon2, lat2) {
+        const kx = 111320 * Math.cos(lat1 * Math.PI / 180), ky = 110540;
+        return Math.hypot((lon2 - lon1) * kx, (lat2 - lat1) * ky);
+    }
+
+    circlePolygon(radiusM, steps = 48) {
+        const { lon, lat } = SENSOR_LOCATION;
+        const kx = 111320 * Math.cos(lat * Math.PI / 180), ky = 110540;
+        const ring = [];
+        for (let i = 0; i <= steps; i++) {
+            const a = (i / steps) * 2 * Math.PI;
+            ring.push([lon + (radiusM * Math.cos(a)) / kx, lat + (radiusM * Math.sin(a)) / ky]);
+        }
+        return [ring];
+    }
+
+    cacheBuildings() {
+        if (!this.map3d || !this.map3dReady) return;
+        const feats = this.map3d.queryRenderedFeatures({ layers: ['bld-base'] });
+        const { lon, lat } = SENSOR_LOCATION;
+        const seen = new Set();
+        this.buildings3d = [];
+        feats.forEach(f => {
+            const g = f.geometry;
+            if (!g || (g.type !== 'Polygon' && g.type !== 'MultiPolygon')) return;
+            const key = f.id != null ? `id${f.id}` : JSON.stringify(g.coordinates[0][0]);
+            if (seen.has(key)) return;
+            seen.add(key);
+            const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+            let dmin = Infinity;
+            polys.forEach(p => p[0].forEach(([x, y]) => { dmin = Math.min(dmin, this.metersBetween(lon, lat, x, y)); }));
+            this.buildings3d.push({
+                d: dmin,
+                f: { type: 'Feature', geometry: g, properties: { height: +f.properties.height || 3, min_height: +f.properties.min_height || 0 } }
+            });
+        });
+        this.update3DHits();
+    }
+
+    update3DHits() {
+        if (!this.map3d || !this.map3dReady) return;
+        const src = this.map3d.getSource('bld-hit');
+        if (!src) return;
+        const r = this.dome3dRadius || 0;
+        const hits = r > 0 && this.buildings3d ? this.buildings3d.filter(b => b.d <= r) : [];
+        src.setData({ type: 'FeatureCollection', features: hits.map(b => b.f) });
+        const v = this.currentVariable;
+        this.set3DNote(v === 'noise_avg'
+            ? `Radio visual ${Math.round(r)} m · <b>${hits.length}</b> ${hits.length === 1 ? 'edificio alcanzado' : 'edificios alcanzados'}<br><span>Escala visual, no es un modelo de propagación</span>`
+            : `<span>Altura y color de la columna según el valor (${VARIABLES[v].label})</span>`);
+    }
+
+    set3DNote(html) {
+        const el = document.getElementById('note3d');
+        if (el) el.innerHTML = html;
+    }
+
+    update3D(data) {
+        if (!this.view3d || !this.map3d || !this.map3dReady) return;
+        const v = this.currentVariable;
+        const vc = VARIABLES[v];
+        const x = this.valueOf(data, v);
+        const color = x === null ? '#64748b' : getColorForValue(v, x);
+        const thr = this.threshold ? this.threshold.value : null;
+        const alert = x !== null && thr !== null && x > thr && this.isValidHour(data);
+        const features = [];
+
+        if (v === 'noise_avg') {
+            // Domo: hemisferio aproximado con discos apilados; radio en escala visual
+            const t = x === null ? 0 : Math.max(0, Math.min(1, (x - VIEW3D.noiseMin) / (VIEW3D.noiseMax - VIEW3D.noiseMin)));
+            const R = x === null ? 0 : VIEW3D.domeMin + t * (VIEW3D.domeMax - VIEW3D.domeMin);
+            this.dome3dRadius = R;
+            const N = 12;
+            for (let k = 0; k < N && R > 0; k++) {
+                const a0 = (k / N) * Math.PI / 2, a1 = ((k + 1) / N) * Math.PI / 2;
+                features.push({ type: 'Feature',
+                    geometry: { type: 'Polygon', coordinates: this.circlePolygon(R * Math.cos(a0)) },
+                    properties: { color, base: R * Math.sin(a0), top: R * Math.sin(a1) } });
+            }
+        } else {
+            // Columna: radio fijo, altura proporcional al valor
+            this.dome3dRadius = 0;
+            const scales = vc.colorScale;
+            const ref = scales[Math.max(0, scales.length - 2)].max;
+            const h = x === null ? 0 : VIEW3D.colMin + Math.max(0, Math.min(1, x / ref)) * (VIEW3D.colMax - VIEW3D.colMin);
+            if (h > 0) features.push({ type: 'Feature',
+                geometry: { type: 'Polygon', coordinates: this.circlePolygon(VIEW3D.colRadius, 32) },
+                properties: { color, base: 0, top: h } });
+        }
+        this.map3d.getSource('sensor-shape').setData({ type: 'FeatureCollection', features });
+        this.update3DHits();
+
+        // Etiqueta
+        if (this.label3d) {
+            const dec = vc.decimals ?? 1;
+            const val = x === null ? '--' : x.toLocaleString('es-GT', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+            const cat = x === null ? 'Sin dato' : alert && this.threshold.relative ? 'Valor alto' : getCategoryForValue(v, x);
+            const el = this.label3d.getElement();
+            el.classList.toggle('alert', alert);
+            el.innerHTML = `<b>${val} ${vc.unit}</b><small>${cat}</small>`;
+        }
+
+        // Pulso sólo en picos
+        if (alert) this.startPulse(); else this.stopPulse();
+    }
+
+    startPulse() {
+        if (this.pulseRAF) return;
+        const t0 = performance.now();
+        const tick = (now) => {
+            if (!this.map3d || !this.view3d) { this.pulseRAF = null; return; }
+            const p = ((now - t0) % 1600) / 1600;                       // ciclo de 1.6 s
+            const base = this.dome3dRadius || VIEW3D.colRadius * 2;
+            const r = base * (1 + 0.8 * p);
+            const src = this.map3d.getSource('pulse');
+            if (src) src.setData({ type: 'FeatureCollection', features: [{
+                type: 'Feature', geometry: { type: 'LineString', coordinates: this.circlePolygon(r)[0] },
+                properties: { op: 1 - p }
+            }] });
+            this.pulseRAF = requestAnimationFrame(tick);
+        };
+        this.pulseRAF = requestAnimationFrame(tick);
+    }
+
+    stopPulse() {
+        if (this.pulseRAF) cancelAnimationFrame(this.pulseRAF);
+        this.pulseRAF = null;
+        const src = this.map3d && this.map3dReady && this.map3d.getSource('pulse');
+        if (src) src.setData(this.emptyFC());
     }
 
     updateInfoPanel(data) {
