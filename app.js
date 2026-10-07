@@ -13,7 +13,9 @@ class CorredorVerdeApp {
         this.isPlaying = false;
         this.playInterval = null;
         this.currentVariable = 'noise_avg';
-        this.currentPeriod = 10;
+        this.currentPeriod = (typeof DEFAULT_PERIOD !== 'undefined') ? DEFAULT_PERIOD : 20;
+        this.fetchController = null;
+        this.loadedPeriod = null;
         this.plotlyChart = null;
         this.chartTimestamps = [];
         this.chartValues = [];
@@ -39,29 +41,41 @@ class CorredorVerdeApp {
             maxZoom: MAP_CONFIG.maxZoom
         });
 
-        // Base layers
-        const darkLayer = L.tileLayer(MAP_CONFIG.tileLayer, {
-            attribution: MAP_CONFIG.attribution
+        // Mapas base (ver MAP_CONFIG.basemaps en constants.js)
+        const bm = MAP_CONFIG.basemaps;
+        const makeLayer = (cfg) => L.tileLayer(cfg.url, {
+            attribution: cfg.attribution,
+            tileSize: cfg.tileSize || 256,
+            zoomOffset: cfg.zoomOffset || 0,
+            maxZoom: MAP_CONFIG.maxZoom
         });
+        const darkLayer = makeLayer(bm.dark);
+        const satelliteLayer = makeLayer(bm.satellite);
+        const fallbackLayer = makeLayer(bm.fallback);
 
-        const satelliteLayer = L.tileLayer(
-            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: '&copy; <a href="https://www.esri.com/">Esri</a> | Smability',
-            maxZoom: 19
-        });
-
-        // Add dark as default
         darkLayer.addTo(this.map);
 
-        // Layer control
         const baseMaps = {
-            '🌑 Dark': darkLayer,
-            '🛰️ Satélite': satelliteLayer
+            [bm.dark.label]: darkLayer,
+            [bm.satellite.label]: satelliteLayer,
+            [bm.fallback.label]: fallbackLayer
         };
         L.control.layers(baseMaps, null, {
             position: 'topright',
             collapsed: true
         }).addTo(this.map);
+
+        // Respaldo: si Mapbox rechaza el token (401/403, URL no autorizada), cambiar a CARTO
+        let loaded = 0, errors = 0;
+        darkLayer.on('tileload', () => { loaded++; });
+        darkLayer.on('tileerror', () => {
+            errors++;
+            if (errors >= 4 && loaded === 0 && this.map.hasLayer(darkLayer)) {
+                console.warn('⚠️ Mapbox no autorizó el token para este dominio; usando CARTO como respaldo.');
+                this.map.removeLayer(darkLayer);
+                fallbackLayer.addTo(this.map);
+            }
+        });
 
         L.control.zoom({ position: 'topright' }).addTo(this.map);
     }
@@ -97,28 +111,73 @@ class CorredorVerdeApp {
         const loadingEl = document.getElementById('loading-overlay');
         const controlsEl = document.getElementById('controls-area');
         const chartEl = document.getElementById('chart-section');
+        const periodSelect = document.getElementById('period-selector');
+        const days = this.currentPeriod;
+
+        // Cancelar una consulta anterior si el usuario cambió de periodo rápido
+        if (this.fetchController) this.fetchController.abort();
+        this.fetchController = new AbortController();
+
+        this.stopPlay();
+        if (periodSelect) periodSelect.disabled = true;
+        this.setCoverage(`Consultando ${days} días…`);
+        if (loadingEl && this.historicalData.length === 0) loadingEl.style.display = 'block';
+
         try {
-            const url = `${API_CONFIG.baseUrl}?action=${API_CONFIG.action}&deviceID=${API_CONFIG.deviceID}&days=${this.currentPeriod}`;
-            const response = await fetch(url);
+            const url = `${API_CONFIG.baseUrl}?action=${API_CONFIG.action}&deviceID=${API_CONFIG.deviceID}&days=${days}`;
+            const response = await fetch(url, { signal: this.fetchController.signal });
             if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
             const result = await response.json();
-            if (result && result.data && Array.isArray(result.data)) {
-                this.historicalData = result.data.sort((a, b) => a.hour_timestamp_utc - b.hour_timestamp_utc);
-                this.setupSlider();
-                if (loadingEl) loadingEl.style.display = 'none';
-                if (controlsEl) controlsEl.style.display = 'block';
-                if (chartEl) chartEl.style.display = 'block';
-                this.updateLastSync();
-                this.buildChart();
-            } else {
-                throw new Error("Formato de datos inválido");
-            }
+            if (!(result && result.data && Array.isArray(result.data))) throw new Error("Formato de datos inválido");
+            if (result.data.length === 0) throw new Error(`La API no devolvió datos para ${days} días`);
+
+            this.historicalData = result.data.sort((a, b) => a.hour_timestamp_utc - b.hour_timestamp_utc);
+            this.loadedPeriod = days;
+            this.setupSlider();
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (controlsEl) controlsEl.style.display = 'block';
+            if (chartEl) chartEl.style.display = 'block';
+            this.updateLastSync();
+            this.buildChart();
+            this.reportCoverage(days);
         } catch (error) {
+            if (error.name === 'AbortError') return;
             console.error("❌ Error cargando datos:", error);
-            if (loadingEl) {
+            if (this.historicalData.length === 0 && loadingEl) {
                 loadingEl.innerHTML = `<div style="color:#ef4444;">❌ Error al cargar datos<br><small>${error.message}</small></div>`;
+            } else {
+                // Conservar los datos que ya se mostraban y avisar
+                this.setCoverage(`No se pudo cargar ${days} días (${error.message}). Se muestran ${this.loadedPeriod} días.`, true);
+                if (periodSelect && this.loadedPeriod) periodSelect.value = String(this.loadedPeriod);
+                this.currentPeriod = this.loadedPeriod || this.currentPeriod;
             }
+        } finally {
+            if (periodSelect) periodSelect.disabled = false;
         }
+    }
+
+    // Compara lo solicitado contra lo que realmente devolvió la API
+    reportCoverage(requestedDays) {
+        const n = this.historicalData.length;
+        const first = this.historicalData[0].hour_timestamp_utc;
+        const last = this.historicalData[n - 1].hour_timestamp_utc;
+        const spanDays = (last - first) / 86400;
+        const expectedHours = requestedDays * 24;
+        const pct = Math.min(100, Math.round((n / expectedHours) * 100));
+        const spanTxt = spanDays >= 1 ? `${spanDays.toFixed(1)} días` : `${Math.round(spanDays * 24)} h`;
+        const short = spanDays < requestedDays - 1.5;
+        this.setCoverage(
+            `${n.toLocaleString('es-GT')} horas con datos · cubren ${spanTxt} (${pct}% de ${requestedDays} días)` +
+            (short ? `<br>La API devolvió menos historial del solicitado.` : ''),
+            short
+        );
+    }
+
+    setCoverage(html, warn = false) {
+        const el = document.getElementById('data-coverage');
+        if (!el) return;
+        el.innerHTML = html;
+        el.classList.toggle('warn', warn);
     }
 
     // ==================================================
@@ -150,7 +209,7 @@ class CorredorVerdeApp {
             y: this.chartValues,
             type: 'scatter',
             mode: 'lines',
-            line: { color: '#10b981', width: 1.5, shape: 'spline' },
+            line: { color: '#10b981', width: 1.5, shape: this.historicalData.length > 1000 ? 'linear' : 'spline' },
             fill: 'tozeroy',
             fillcolor: 'rgba(16,185,129,0.08)',
             hovertemplate:
@@ -247,7 +306,7 @@ class CorredorVerdeApp {
         if (!this.plotlyChart || this.chartTimestamps.length === 0) return;
 
         const ts = this.chartTimestamps[index];
-        const val = this.chartValues[index];
+        const val = Number(this.chartValues[index]) || 0;
 
         // Update vertical line
         const layoutUpdate = {
@@ -279,7 +338,7 @@ class CorredorVerdeApp {
         const titleEl = document.getElementById('chart-title');
         if (titleEl) {
             const varConfig = VARIABLES[this.currentVariable];
-            titleEl.textContent = `📈 ${varConfig.label} — Últimos ${this.currentPeriod} días`;
+            titleEl.textContent = `📈 ${varConfig.label} — Últimos ${this.loadedPeriod || this.currentPeriod} días`;
         }
     }
 
@@ -301,12 +360,18 @@ class CorredorVerdeApp {
         if (startLabel) startLabel.textContent = this.formatShortDate(firstDate);
         if (endLabel) endLabel.textContent = this.formatShortDate(lastDate);
 
-        slider.addEventListener('input', (e) => {
-            this.updateVisualization(parseInt(e.target.value));
-        });
+        if (!slider.dataset.bound) {
+            slider.addEventListener('input', (e) => {
+                this.updateVisualization(parseInt(e.target.value));
+            });
+            slider.dataset.bound = '1';
+        }
     }
 
     setupControls() {
+        const periodSel = document.getElementById('period-selector');
+        if (periodSel) periodSel.value = String(this.currentPeriod);
+
         const varSelect = document.getElementById('variable-selector');
         if (varSelect) {
             varSelect.addEventListener('change', (e) => {
@@ -321,7 +386,7 @@ class CorredorVerdeApp {
             periodSelect.addEventListener('change', async (e) => {
                 this.currentPeriod = parseInt(e.target.value);
                 await this.loadHistoricalData();
-                this.updateVisualization(this.historicalData.length - 1);
+                if (this.historicalData.length) this.updateVisualization(this.historicalData.length - 1);
             });
         }
 
@@ -419,27 +484,29 @@ class CorredorVerdeApp {
     // PLAY / REWIND — va hacia atrás (rewind)
     // ==================================================
     togglePlay() {
+        if (this.isPlaying) { this.stopPlay(); return; }
         const playBtn = document.getElementById('play-btn');
-        if (this.isPlaying) {
-            clearInterval(this.playInterval);
-            this.isPlaying = false;
-            if (playBtn) playBtn.textContent = '⏪';
-        } else {
-            this.isPlaying = true;
-            if (playBtn) playBtn.textContent = '⏸';
+        this.isPlaying = true;
+        if (playBtn) playBtn.textContent = '⏸';
 
-            this.playInterval = setInterval(() => {
-                let nextIndex = this.currentDataIndex - 1;
-                if (nextIndex < 0) {
-                    // Reached the beginning — stop and reset
-                    clearInterval(this.playInterval);
-                    this.isPlaying = false;
-                    if (playBtn) playBtn.textContent = '⏪';
-                    nextIndex = this.historicalData.length - 1;
-                }
-                this.updateVisualization(nextIndex);
-            }, 200); // 5x speed
-        }
+        // Con 80 días hay ~1,900 horas: avanzar varias horas por paso para que el recorrido dure ~90 s
+        const step = Math.max(1, Math.round(this.historicalData.length / 450));
+        this.playInterval = setInterval(() => {
+            let nextIndex = this.currentDataIndex - step;
+            if (nextIndex < 0) {
+                this.stopPlay();
+                nextIndex = this.historicalData.length - 1;
+            }
+            this.updateVisualization(nextIndex);
+        }, 200);
+    }
+
+    stopPlay() {
+        if (this.playInterval) clearInterval(this.playInterval);
+        this.playInterval = null;
+        this.isPlaying = false;
+        const playBtn = document.getElementById('play-btn');
+        if (playBtn) playBtn.textContent = '⏪';
     }
 
     // ==================================================
