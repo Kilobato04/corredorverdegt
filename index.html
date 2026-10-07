@@ -92,7 +92,9 @@
                         <span><i class="lg-partial"></i>Parcial</span>
                         <span><i class="lg-none"></i>Sin datos</span>
                         <span><i class="lg-sel"></i>Seleccionado</span>
+                        <span><b class="lg-peak">2</b>Horas sobre umbral</span>
                     </div>
+                    <div id="peak-summary" class="peak-summary"></div>
                     <div class="cal-actions">
                         <button type="button" id="sel-last7" class="cal-btn">Últimos 7 días</button>
                         <button type="button" id="sel-month" class="cal-btn">Mes completo</button>
@@ -125,9 +127,10 @@
             <div id="chart-section" class="chart-section panel-section" style="display: none;">
                 <div class="chart-header">
                     <h3 id="chart-title">📈 Histórico</h3>
-                    <div id="chart-tooltip" class="chart-tooltip"></div>
+
                 </div>
                 <div id="plotly-chart"></div>
+                <div id="chart-tooltip" class="chart-tooltip"></div>
             </div>
 
             <div class="social-footer panel-section">
