@@ -21,15 +21,42 @@ const API_CONFIG = {
 // Zona horaria de Guatemala (UTC-6)
 const TIMEZONE_OFFSET = -6;
 
+// Mapbox (mismo token que la presentación ejecutiva).
+// IMPORTANTE: si el token tiene restricción de URLs en account.mapbox.com,
+// agregar también la URL de este visor (https://<sitio>.netlify.app/*).
+const MAPBOX_TOKEN = 'pk.eyJ1Ijoia2lsb2JhdG8iLCJhIjoiY21jd2g2b3RzMDJiNDJxcTA0cTFhZmE4OCJ9.u5zPxYCxqEaF2jnj32l4ng';
+
 // Configuración del mapa
 const MAP_CONFIG = {
     center: [14.615641, -90.556407],
     zoom: 14,
     minZoom: 12,
-    maxZoom: 17,
-    tileLayer: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a> | Smability'
+    maxZoom: 18,
+    // Mapas base: Mapbox (principal) + CARTO (respaldo automático si Mapbox rechaza el token)
+    basemaps: {
+        dark: {
+            label: '🌑 Dark',
+            url: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
+            attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | Smability',
+            tileSize: 512, zoomOffset: -1
+        },
+        satellite: {
+            label: '🛰️ Satélite',
+            url: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
+            attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; Maxar | Smability',
+            tileSize: 512, zoomOffset: -1
+        },
+        fallback: {
+            label: '🌑 Dark (CARTO)',
+            url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a> | Smability'
+        }
+    }
 };
+
+// Periodos históricos disponibles (días). La API recibe ?days=N
+const PERIODS = [7, 10, 20, 40, 60, 80];
+const DEFAULT_PERIOD = 20;
 
 // Variables disponibles para visualización
 const VARIABLES = {
