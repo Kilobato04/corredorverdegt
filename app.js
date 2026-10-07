@@ -33,12 +33,12 @@ class CorredorVerdeApp {
     }
 
     async init() {
-        console.log("🌿 Iniciando Corredor Verde Monitor...");
+        console.log("Iniciando Corredor Verde Monitor...");
         this.initMap();
         this.drawCorridor();
         this.setupControls();
         await this.loadAllData();
-        console.log("✅ Aplicación inicializada correctamente");
+        console.log("Aplicación inicializada");
     }
 
     // ==================================================
@@ -63,25 +63,25 @@ class CorredorVerdeApp {
         });
         const darkLayer = makeLayer(bm.dark);
         const satelliteLayer = makeLayer(bm.satellite);
-        const fallbackLayer = makeLayer(bm.fallback);
         darkLayer.addTo(this.map);
 
         L.control.layers({
             [bm.dark.label]: darkLayer,
-            [bm.satellite.label]: satelliteLayer,
-            [bm.fallback.label]: fallbackLayer
+            [bm.satellite.label]: satelliteLayer
         }, null, { position: 'topright', collapsed: true }).addTo(this.map);
 
-        // Respaldo: si Mapbox rechaza el token (URL no autorizada), cambiar a CARTO
+        // Si Mapbox rechaza el token (URL no autorizada), mostrar aviso en el mapa
         let loaded = 0, errors = 0;
-        darkLayer.on('tileload', () => { loaded++; });
-        darkLayer.on('tileerror', () => {
-            errors++;
-            if (errors >= 4 && loaded === 0 && this.map.hasLayer(darkLayer)) {
-                console.warn('⚠️ Mapbox no autorizó el token para este dominio; usando CARTO como respaldo.');
-                this.map.removeLayer(darkLayer);
-                fallbackLayer.addTo(this.map);
-            }
+        const errEl = document.getElementById('map-error');
+        [darkLayer, satelliteLayer].forEach(layer => {
+            layer.on('tileload', () => { loaded++; if (errEl) errEl.hidden = true; });
+            layer.on('tileerror', () => {
+                errors++;
+                if (errors >= 4 && loaded === 0 && errEl) {
+                    errEl.hidden = false;
+                    console.warn('Mapbox no autorizó el token para este dominio.');
+                }
+            });
         });
 
         L.control.zoom({ position: 'topright' }).addTo(this.map);
@@ -107,7 +107,7 @@ class CorredorVerdeApp {
                 }
             }).addTo(this.map);
         } catch (error) {
-            console.warn("⚠️ Usando geometría de respaldo");
+            console.warn("Usando geometría de respaldo del corredor");
             this.corridorLayer = L.geoJSON(CORREDOR_VERDE_GEOJSON, {
                 style: { color: '#10b981', weight: 6, opacity: 0.9, dashArray: '10, 5', lineCap: 'round' }
             }).addTo(this.map);
@@ -140,7 +140,7 @@ class CorredorVerdeApp {
                 if (used === null) used = days;   // respondió, pero vacío: probar periodos más cortos
             } catch (e) {
                 lastError = e;
-                console.warn(`⚠️ La API no respondió para ${days} días:`, e.message);
+                console.warn(`La API no respondió para ${days} días:`, e.message);
             }
         }
 
@@ -148,7 +148,8 @@ class CorredorVerdeApp {
         if (controlsEl) controlsEl.style.display = 'block';
 
         if (used === null) {
-            this.setCoverage(`❌ No se pudo consultar la API (${lastError ? lastError.message : 'sin respuesta'}).`, true);
+            this.setCoverage(`No se pudo consultar la API (${lastError ? lastError.message : 'sin respuesta'}).`, true);
+            this.renderStatus();
             this.renderCalendar();
             return;
         }
@@ -159,12 +160,13 @@ class CorredorVerdeApp {
             .sort((a, b) => a.hour_timestamp_utc - b.hour_timestamp_utc);
         this.indexDays();
         this.computeDayStats();
-        this.updateLastSync();
+        this.renderStatus();
+        this.renderVarCards(this.allData[this.allData.length - 1]);
 
         if (this.allData.length === 0) {
             this.calMonth = this.monthOf(new Date(Date.now() + TIMEZONE_OFFSET * 3600000));
             this.renderCalendar();
-            this.setCoverage(`Sin datos de ${API_CONFIG.deviceID} en los últimos ${steps[0]} días consultados.`, true);
+            this.setCoverage(`Sin datos del ${SENSOR_LOCATION.displayName} en los últimos ${steps[0]} días consultados.`, true);
             this.showEmptyChart('Sin datos en el periodo consultado');
             return;
         }
@@ -185,47 +187,167 @@ class CorredorVerdeApp {
         });
     }
 
+    // Una hora cuenta para picos/estadística si su completitud es ≥ minCompleteness (o si la API no la reporta)
+    isValidHour(d) {
+        const c = d.data_completeness;
+        return c == null || !Number.isFinite(+c) || +c >= HISTORY_CONFIG.minCompleteness;
+    }
+
+    valueOf(d, v = this.currentVariable) {
+        const x = d[v];
+        return x == null || !Number.isFinite(+x) ? null : +x;
+    }
+
     // Umbral y picos por día para la variable actual (sobre todo el historial, no sólo la selección)
     computeDayStats() {
         const v = this.currentVariable;
         const alert = VARIABLES[v].alert || {};
-        const values = this.allData.map(d => d[v]).filter(x => x != null && Number.isFinite(+x)).map(Number);
+        const values = this.allData.filter(d => this.isValidHour(d)).map(d => this.valueOf(d, v)).filter(x => x !== null);
 
         if (alert.value != null) {
             this.threshold = { value: alert.value, text: alert.text || String(alert.value), relative: false };
         } else if (alert.percentile && values.length) {
             const sorted = [...values].sort((a, b) => a - b);
             const p = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * alert.percentile / 100))];
-            this.threshold = { value: p, text: `${p.toFixed(1)} ${VARIABLES[v].unit} (P${alert.percentile})`, relative: true };
+            this.threshold = { value: p, text: `${p.toFixed(1)} ${VARIABLES[v].unit}`, relative: true, percentile: alert.percentile };
         } else {
             this.threshold = null;
         }
 
         this.dayStats.clear();
         this.allData.forEach(d => {
-            const val = d[v];
-            if (val == null || !Number.isFinite(+val)) return;
+            const val = this.valueOf(d, v);
+            if (val === null || !this.isValidHour(d)) return;
             const key = this.dayKey(d.hour_timestamp_utc);
             const st = this.dayStats.get(key) || { max: -Infinity, maxTs: null, peakHours: 0 };
-            if (+val > st.max) { st.max = +val; st.maxTs = d.hour_timestamp_utc; }
-            if (this.threshold && +val > this.threshold.value) st.peakHours++;
+            if (val > st.max) { st.max = val; st.maxTs = d.hour_timestamp_utc; }
+            if (this.threshold && val > this.threshold.value) st.peakHours++;
             this.dayStats.set(key, st);
         });
-        this.renderPeakSummary();
+        this.renderStats();
     }
 
-    renderPeakSummary() {
+    // Estadística de un conjunto de horas para la variable actual
+    scopeStats(rows) {
+        const v = this.currentVariable;
+        const keys = [...new Set(rows.map(d => this.dayKey(d.hour_timestamp_utc)))].sort();
+        const valid = rows.filter(d => this.isValidHour(d) && this.valueOf(d, v) !== null);
+        const excluded = rows.filter(d => !this.isValidHour(d) && this.valueOf(d, v) !== null).length;
+        const thr = this.threshold ? this.threshold.value : Infinity;
+        const over = valid.filter(d => this.valueOf(d, v) > thr);
+        const overDays = new Set(over.map(d => this.dayKey(d.hour_timestamp_utc)));
+        let max = null, maxTs = null, sum = 0;
+        valid.forEach(d => {
+            const x = this.valueOf(d, v);
+            sum += x;
+            if (max === null || x > max) { max = x; maxTs = d.hour_timestamp_utc; }
+        });
+        const span = keys.length
+            ? Math.round((this.keyToDate(keys[keys.length - 1]) - this.keyToDate(keys[0])) / DAY_MS) + 1 : 0;
+        return {
+            first: keys[0], last: keys[keys.length - 1], daysWithData: keys.length, calendarDays: span,
+            validHours: valid.length, excluded, overHours: over.length, overDays: overDays.size,
+            max, maxTs, mean: valid.length ? sum / valid.length : null
+        };
+    }
+
+    // Resumen: historial completo + selección, con periodo y base explícitos
+    renderStats() {
         const el = document.getElementById('peak-summary');
+        const titleEl = document.getElementById('stats-title');
         if (!el) return;
         const vc = VARIABLES[this.currentVariable];
-        if (!this.threshold || this.dayStats.size === 0) { el.innerHTML = ''; return; }
-        const peakDays = [...this.dayStats.entries()].filter(([, s]) => s.peakHours > 0);
-        const top = [...this.dayStats.entries()].sort((a, b) => b[1].max - a[1].max)[0];
-        const topTxt = top ? `máximo <b>${top[1].max.toFixed(1)} ${vc.unit}</b> el ${this.keyToLabel(top[0], true)} a las ${this.hourLabel(top[1].maxTs)}` : '';
-        el.innerHTML = `${vc.icon} ${vc.label}: <b>${peakDays.length}</b> ${peakDays.length === 1 ? 'día' : 'días'} con horas sobre ${this.threshold.text}` +
-            (topTxt ? ` · ${topTxt}` : '') +
-            (this.threshold.relative ? `<br><span class="muted">Umbral relativo: 5% de horas más altas del historial.</span>` : '') +
-            `<br><span class="muted">Valores promedio por hora.</span>`;
+        if (titleEl) titleEl.innerHTML = `${icon(vc.icon)}Resumen · ${vc.label}`;
+        if (this.allData.length === 0) { el.innerHTML = '<div class="empty-state">Sin datos para calcular</div>'; return; }
+
+        const dec = vc.decimals ?? 1;
+        const fmt = x => x === null ? '--' : Number(x).toLocaleString('es-GT', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+        const pct = (a, b) => b ? `${Math.round(a / b * 100)}%` : '--';
+        const rel = this.threshold && this.threshold.relative;
+        const thrTxt = this.threshold ? this.threshold.text : '--';
+        const dayLbl = rel ? 'Días con valores altos' : `Días con horas &gt; ${thrTxt}`;
+        const hourLbl = rel ? 'Horas con valores altos' : `Horas &gt; ${thrTxt}`;
+
+        const block = (label, st) => {
+            if (!st.daysWithData) return '';
+            const range = st.first === st.last
+                ? this.keyToLabel(st.first, true)
+                : `${this.keyToLabel(st.first, true)} – ${this.keyToLabel(st.last, true)}`;
+            return `<div class="stat-block">
+                <div class="stat-label">${label}</div>
+                <div><span class="stat-range">${range}</span> · ${st.daysWithData} ${st.daysWithData === 1 ? 'día' : 'días'} con datos de ${st.calendarDays} calendario</div>
+                <div class="stat-grid">
+                    <div class="stat${st.overDays ? ' alert' : ''}"><b>${st.overDays} <small>(${pct(st.overDays, st.daysWithData)})</small></b><span>${dayLbl}</span></div>
+                    <div class="stat${st.overHours ? ' alert' : ''}"><b>${st.overHours.toLocaleString('es-GT')} h <small>(${pct(st.overHours, st.validHours)})</small></b><span>${hourLbl}</span></div>
+                    <div class="stat"><b>${fmt(st.max)} ${vc.unit}</b><span>Máximo horario${st.maxTs ? ` · ${this.keyToLabel(this.dayKey(st.maxTs))}, ${this.hourLabel(st.maxTs)}` : ''}</span></div>
+                    <div class="stat"><b>${fmt(st.mean)} ${vc.unit}</b><span>Promedio del periodo</span></div>
+                </div>
+            </div>`;
+        };
+
+        const all = this.scopeStats(this.allData);
+        const sel = this.historicalData.length ? this.scopeStats(this.historicalData) : null;
+        const thrNote = rel
+            ? `Valores altos: horas por encima del percentil ${this.threshold.percentile} del historial (${thrTxt}); ${vc.label.toLowerCase()} no tiene umbral de salud.`
+            : `Umbral de referencia: ${thrTxt}.`;
+        el.innerHTML = block('Historial completo', all) + (sel ? block('Selección', sel) : '') +
+            `<div class="stat-note">${thrNote} Porcentajes sobre días y horas con datos. Valores promedio por hora; ` +
+            `se excluyen horas con completitud &lt; ${HISTORY_CONFIG.minCompleteness}%` +
+            `${all.excluded ? ` (${all.excluded} h en el historial)` : ''}.</div>`;
+    }
+
+    // Indicador de antigüedad del último dato
+    renderStatus() {
+        const pill = document.getElementById('status-pill');
+        const last = document.getElementById('last-data');
+        if (!pill) return;
+        if (!this.allData.length) {
+            pill.className = 'status-pill stale';
+            pill.textContent = 'Sin datos';
+            if (last) last.textContent = '';
+            return;
+        }
+        const ts = this.allData[this.allData.length - 1].hour_timestamp_utc;
+        const ageH = (Date.now() / 1000 - ts) / 3600;
+        const [cls, txt] = ageH <= FRESHNESS.liveHours ? ['live', 'En vivo']
+            : ageH <= FRESHNESS.recentHours ? ['recent', 'Reciente'] : ['stale', 'Sin transmisión'];
+        pill.className = `status-pill ${cls}`;
+        pill.textContent = txt;
+        if (last) last.textContent = `Último dato: ${this.formatFullDate(this.convertToGuatemalaTime(ts))}`;
+    }
+
+    // Tarjetas de variables con el valor de la hora mostrada; clic = elegir variable
+    renderVarCards(data) {
+        const wrap = document.getElementById('var-cards');
+        if (!wrap) return;
+        wrap.innerHTML = VARIABLE_ORDER.filter(v => VARIABLES[v]).map(v => {
+            const vc = VARIABLES[v];
+            const x = data ? this.valueOf(data, v) : null;
+            const dec = vc.decimals ?? 1;
+            const val = x === null ? '--' : x.toLocaleString('es-GT', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+            const color = x === null ? '#64748b' : getColorForValue(v, x);
+            const cat = x === null ? 'Sin dato' : getCategoryForValue(v, x);
+            return `<button type="button" class="var-card${v === this.currentVariable ? ' active' : ''}" data-var="${v}" title="${vc.label}: ${cat}">
+                ${icon(vc.icon)}
+                <span class="vc-name"><i class="vc-dot" style="background:${color}"></i>${vc.short || vc.label}</span>
+                <span class="vc-value">${val}<small>${vc.unit}</small></span>
+            </button>`;
+        }).join('');
+        const t = document.getElementById('cards-time');
+        if (t) t.textContent = data ? this.formatFullDate(this.convertToGuatemalaTime(data.hour_timestamp_utc)) : '--';
+    }
+
+    setVariable(v) {
+        if (!VARIABLES[v] || v === this.currentVariable) return;
+        this.currentVariable = v;
+        this.computeDayStats();
+        this.renderCalendar();
+        if (this.historicalData.length === 0) {
+            this.renderVarCards(this.allData[this.allData.length - 1]);
+            return;
+        }
+        this.buildChart();
+        this.updateVisualization(this.currentDataIndex);
     }
 
     applySelection() {
@@ -233,6 +355,7 @@ class CorredorVerdeApp {
         this.historicalData = this.allData.filter(d => this.selectedDays.has(this.dayKey(d.hour_timestamp_utc)));
         this.renderCalendar();
         this.reportSelection();
+        this.renderStats();
 
         const chartEl = document.getElementById('chart-section');
         const timeEl = document.querySelector('.time-control');
@@ -385,8 +508,8 @@ class CorredorVerdeApp {
             mode: 'lines',
             line: { color: '#10b981', width: 1.5, shape: this.historicalData.length > 1000 ? 'linear' : 'spline' },
             fill: 'tozeroy',
-            fillcolor: 'rgba(16,185,129,0.08)',
-            hovertemplate: `<b>${varConfig.icon} %{y:.1f} ${varConfig.unit}</b><br>%{x|%d %b %Y  %H:%M}<br><extra></extra>`,
+            fillcolor: 'rgba(16,185,129,0.10)',
+            hovertemplate: `<b>%{y:.1f} ${varConfig.unit}</b><br>%{x|%d %b %Y  %H:%M}<br><extra></extra>`,
             showlegend: false
         };
         const segments = [];
@@ -431,7 +554,7 @@ class CorredorVerdeApp {
             plot_bgcolor: 'rgba(0,0,0,0)',
             margin: { t: 8, r: 8, b: 48, l: 36 },
             showlegend: false,
-            font: { family: 'Segoe UI, sans-serif', size: 10, color: '#94a3b8' },
+            font: { family: 'Arial, Helvetica, sans-serif', size: 10, color: '#94a3b8' },
             xaxis: {
                 type: 'date',
                 gridcolor: 'rgba(45,55,72,0.4)',
@@ -442,7 +565,7 @@ class CorredorVerdeApp {
                 showgrid: true,
                 nticks: 6,
                 hoverformat: '%d %b %Y %H:%M',
-                title: { text: `${varConfig.icon} ${varConfig.label} (${varConfig.unit})`, font: { size: 9, color: '#64748b' }, standoff: 6 }
+                title: { text: `${varConfig.label} (${varConfig.unit})`, font: { size: 9, color: '#64748b' }, standoff: 6 }
             },
             yaxis: {
                 gridcolor: 'rgba(45,55,72,0.4)',
@@ -452,7 +575,7 @@ class CorredorVerdeApp {
                 showgrid: true
             },
             shapes,
-            hoverlabel: { bgcolor: 'rgba(15,20,25,0.95)', bordercolor: '#38bdf8', font: { color: '#e2e8f0', size: 11 } },
+            hoverlabel: { bgcolor: '#1c2a40', bordercolor: '#38bdf8', font: { family: 'Arial, Helvetica, sans-serif', color: '#e2e8f0', size: 11 } },
             dragmode: false
         };
 
@@ -488,7 +611,7 @@ class CorredorVerdeApp {
         }
         this.plotlyChart = null;
         const titleEl = document.getElementById('chart-title');
-        if (titleEl) titleEl.textContent = '📈 Histórico';
+        if (titleEl) titleEl.innerHTML = `${icon('chart')}Histórico`;
         const tooltip = document.getElementById('chart-tooltip');
         if (tooltip) tooltip.classList.remove('visible');
     }
@@ -508,8 +631,8 @@ class CorredorVerdeApp {
             const color = getColorForValue(this.currentVariable, val);
             const dateStr = this.formatFullDate(this.convertToGuatemalaTime(this.historicalData[index].hour_timestamp_utc));
             tooltip.innerHTML =
-                `<span style="color:${color};font-weight:700;">${varConfig.icon} ${raw == null ? '--' : val.toFixed(1)} ${varConfig.unit}</span>` +
-                `<span style="color:#64748b;margin-left:8px;">${dateStr}</span>`;
+                `<span style="color:${color};display:inline-flex;align-items:center;gap:5px;font-weight:700;">${icon(varConfig.icon)}${raw == null ? '--' : val.toFixed(varConfig.decimals ?? 1)} ${varConfig.unit}</span>` +
+                `<span style="color:#94a3b8;">${dateStr}</span>`;
             tooltip.classList.add('visible');
         }
     }
@@ -519,7 +642,7 @@ class CorredorVerdeApp {
         if (!titleEl) return;
         const varConfig = VARIABLES[this.currentVariable];
         const n = this.selectedDays.size;
-        titleEl.textContent = `📈 ${varConfig.label} — ${n} ${n === 1 ? 'día seleccionado' : 'días seleccionados'}`;
+        titleEl.innerHTML = `${icon('chart')}${varConfig.label} · ${n} ${n === 1 ? 'día seleccionado' : 'días seleccionados'}`;
     }
 
     // ==================================================
@@ -544,17 +667,20 @@ class CorredorVerdeApp {
         const slider = document.getElementById('time-slider');
         if (slider) slider.addEventListener('input', (e) => this.updateVisualization(parseInt(e.target.value)));
 
-        const varSelect = document.getElementById('variable-selector');
-        if (varSelect) {
-            varSelect.addEventListener('change', (e) => {
-                this.currentVariable = e.target.value;
-                this.computeDayStats();
-                this.renderCalendar();
-                if (this.historicalData.length === 0) return;
-                this.buildChart();
-                this.updateVisualization(this.currentDataIndex);
+        const cards = document.getElementById('var-cards');
+        if (cards) {
+            cards.addEventListener('click', (e) => {
+                const btn = e.target.closest('.var-card');
+                if (btn) this.setVariable(btn.dataset.var);
             });
         }
+        const deviceEl = document.getElementById('device-name');
+        if (deviceEl) deviceEl.textContent = SENSOR_LOCATION.displayName;
+        const calIcon = document.getElementById('cal-icon');
+        if (calIcon) calIcon.outerHTML = icon('calendar');
+        const playBtn = document.getElementById('play-btn');
+        if (playBtn) playBtn.innerHTML = icon('rewind');
+        this.renderVarCards(null);
 
         const grid = document.getElementById('cal-grid');
         if (grid) {
@@ -592,6 +718,7 @@ class CorredorVerdeApp {
 
         this.updateMarker(data);
         this.updateInfoPanel(data);
+        this.renderVarCards(data);
         this.updateChartMarker(index);
 
         const slider = document.getElementById('time-slider');
@@ -610,48 +737,24 @@ class CorredorVerdeApp {
 
         const varConfig = VARIABLES[this.currentVariable];
         const guatemalaTime = this.convertToGuatemalaTime(data.hour_timestamp_utc);
+        const fmt = (x, d = 1) => x == null || !Number.isFinite(+x) ? '--' : Number(x).toFixed(d);
         this.marker.bindPopup(`
-            <div style="font-family:sans-serif;min-width:180px;">
-                <h4 style="margin:0 0 8px;color:#10b981;">${SENSOR_LOCATION.name}</h4>
-                <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:8px;">${this.formatFullDate(guatemalaTime)}</div>
-                <div style="font-size:1.3rem;font-weight:bold;color:${color};margin-bottom:8px;">
-                    ${varConfig.icon} ${value != null ? Number(value).toFixed(1) : '--'} ${varConfig.unit}
-                </div>
-                <div style="font-size:0.8rem;background:rgba(0,0,0,0.2);padding:6px;border-radius:6px;">
+            <div class="popup">
+                <h4>${SENSOR_LOCATION.name}</h4>
+                <div class="p-sub">${SENSOR_LOCATION.displayName} · ${this.formatFullDate(guatemalaTime)}</div>
+                <div class="p-val" style="color:${color};">${icon(varConfig.icon)}${fmt(value, varConfig.decimals ?? 1)} ${varConfig.unit}</div>
+                <div class="p-extra">
                     <b>AQI:</b> ${data.aqi ?? '--'} (${data.aqi_category ?? '--'})<br>
-                    <b>Contaminante:</b> ${data.aqi_pollutant ?? '--'}<br>
-                    <b>Temp:</b> ${data.temperature_avg ?? '--'}°C
+                    <b>Contaminante principal:</b> ${data.aqi_pollutant ?? '--'}<br>
+                    <b>Temperatura:</b> ${fmt(data.temperature_avg)} °C · <b>Humedad:</b> ${fmt(data.humidity_avg, 0)} %
                 </div>
             </div>
         `);
     }
 
     updateInfoPanel(data) {
-        const guatemalaTime = this.convertToGuatemalaTime(data.hour_timestamp_utc);
         const datetimeEl = document.getElementById('current-datetime');
-        if (datetimeEl) datetimeEl.textContent = this.formatFullDate(guatemalaTime);
-
-        const aqiEl = document.getElementById('current-aqi');
-        const categoryEl = document.getElementById('current-category');
-        const noiseEl = document.getElementById('current-noise');
-        const tempEl = document.getElementById('current-temp');
-
-        if (aqiEl) aqiEl.textContent = data.aqi ?? '--';
-        if (categoryEl) {
-            categoryEl.textContent = data.aqi_category || '--';
-            categoryEl.style.color = getColorForValue('aqi', data.aqi);
-        }
-        if (noiseEl) noiseEl.textContent = data.noise_avg != null ? `${Number(data.noise_avg).toFixed(1)} dB` : '--';
-        if (tempEl) tempEl.textContent = data.temperature_avg != null ? `${Number(data.temperature_avg).toFixed(1)}°C` : '--';
-    }
-
-    updateLastSync() {
-        const updateEl = document.getElementById('last-update');
-        if (updateEl) {
-            updateEl.textContent = `Actualizado: ${new Date().toLocaleTimeString('es-GT', {
-                hour: '2-digit', minute: '2-digit', timeZone: 'America/Guatemala'
-            })}`;
-        }
+        if (datetimeEl) datetimeEl.textContent = this.formatFullDate(this.convertToGuatemalaTime(data.hour_timestamp_utc));
     }
 
     // ==================================================
@@ -662,7 +765,7 @@ class CorredorVerdeApp {
         if (this.historicalData.length === 0) return;
         const playBtn = document.getElementById('play-btn');
         this.isPlaying = true;
-        if (playBtn) playBtn.textContent = '⏸';
+        if (playBtn) playBtn.innerHTML = icon('pause');
 
         const step = Math.max(1, Math.round(this.historicalData.length / 450));
         this.playInterval = setInterval(() => {
@@ -680,7 +783,7 @@ class CorredorVerdeApp {
         this.playInterval = null;
         this.isPlaying = false;
         const playBtn = document.getElementById('play-btn');
-        if (playBtn) playBtn.textContent = '⏪';
+        if (playBtn) playBtn.innerHTML = icon('rewind');
     }
 
     // ==================================================
