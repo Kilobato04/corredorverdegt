@@ -54,9 +54,13 @@ const MAP_CONFIG = {
     }
 };
 
-// Periodos históricos disponibles (días). La API recibe ?days=N
-const PERIODS = [7, 10, 20, 40, 60, 80];
-const DEFAULT_PERIOD = 20;
+// Historial: la API sólo acepta "?days=N" (N días hacia atrás desde hoy).
+// El visor pide el periodo más largo que la API responda, en este orden, y con eso arma el calendario.
+const HISTORY_CONFIG = {
+    lookbackSteps: [365, 180, 120, 90, 60, 40, 20],
+    fullDayHours: 18,        // un día con ≥18 h de datos se marca como "completo"
+    defaultSelectionDays: 7  // al abrir, se seleccionan los últimos 7 días con datos
+};
 
 // Variables disponibles para visualización
 const VARIABLES = {
