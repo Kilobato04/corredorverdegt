@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> Corredor Verde Guatemala - Monitor Ambiental</title>
+    <title>Corredor Verde · Monitor ambiental</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -24,57 +24,37 @@
         <div id="info-panel" class="info-column">
             
             <div class="header panel-section">
-                <div class="header-title-container">
-                    <h1 class="main-title">Corredor Verde</h1>
+                <h1 class="main-title">Corredor Verde</h1>
+                <div class="header-meta">
                     <span class="location-badge">Ciudad de Guatemala</span>
+                    <span id="device-name" class="device-name">Dispositivo SMAA 02</span>
                 </div>
-                <div id="last-update" class="update-info">Sincronizando...</div>
-            </div>
-
-            <div class="audit-card panel-section">
-                <h3>📊 Estado Actual - SMAA_002</h3>
-                <div class="audit-grid">
-                    <div class="audit-item">
-                        <span class="label">AQI:</span>
-                        <span id="current-aqi" class="value">--</span>
-                    </div>
-                    <div class="audit-item">
-                        <span class="label">Categoría:</span>
-                        <span id="current-category" class="value">--</span>
-                    </div>
-                    <div class="audit-item">
-                        <span class="label">Ruido:</span>
-                        <span id="current-noise" class="value">--</span>
-                    </div>
-                    <div class="audit-item">
-                        <span class="label">Temp:</span>
-                        <span id="current-temp" class="value">--</span>
-                    </div>
+                <div class="status-row">
+                    <span id="status-pill" class="status-pill">Sincronizando…</span>
+                    <span id="last-data" class="last-data"></span>
                 </div>
             </div>
 
             <div id="loading-overlay" class="loading panel-section">
-                <div class="spinner"></div>Consultando historial disponible...
+                <div class="spinner"></div>Consultando historial disponible…
             </div>
 
-            <div id="controls-area" class="controls-section panel-section" style="display: none;">
-                
-                <div class="control-group">
-                    <label class="control-label">Variable a Visualizar</label>
-                    <select id="variable-selector" class="control-select">
-                        <option value="noise_avg">🔊 Ruido (dB)</option>
-                        <option value="pm25_avg">💨 PM2.5 (µg/m³)</option>
-                        <option value="pm10_avg">💨 PM10 (µg/m³)</option>
-                        <option value="o3_avg">🌫️ Ozono (ppb)</option>
-                        <option value="co_avg">⚠️ CO (ppb)</option>
-                        <option value="temperature_avg">🌡️ Temperatura (°C)</option>
-                        <option value="humidity_avg">💧 Humedad (%)</option>
-                        <option value="aqi">📈 AQI</option>
-                    </select>
-                </div>
+            <div id="controls-area" class="panel-section" style="display: none;">
 
-                <div class="control-group">
-                    <label class="control-label">Disponibilidad de datos</label>
+                <!-- Variables: valor a la hora mostrada; clic = elegir variable -->
+                <section class="card">
+                    <div class="card-head">
+                        <h3>Variables</h3>
+                        <span id="cards-time" class="card-sub">--</span>
+                    </div>
+                    <div id="var-cards" class="var-cards"></div>
+                </section>
+
+                <!-- Calendario de disponibilidad -->
+                <section class="card">
+                    <div class="card-head">
+                        <h3><span id="cal-icon"></span>Disponibilidad de datos</h3>
+                    </div>
                     <div id="calendar" class="calendar">
                         <div class="cal-head">
                             <button type="button" id="cal-prev" class="cal-nav" aria-label="Mes anterior">‹</button>
@@ -94,24 +74,23 @@
                         <span><i class="lg-sel"></i>Seleccionado</span>
                         <span><b class="lg-peak">2</b>Horas sobre umbral</span>
                     </div>
-                    <div id="peak-summary" class="peak-summary"></div>
                     <div class="cal-actions">
                         <button type="button" id="sel-last7" class="cal-btn">Últimos 7 días</button>
                         <button type="button" id="sel-month" class="cal-btn">Mes completo</button>
                         <button type="button" id="sel-clear" class="cal-btn">Limpiar</button>
                     </div>
                     <div id="data-coverage" class="data-coverage"></div>
-                </div>
+                </section>
 
-                <div class="time-control">
+                <!-- Navegación en el tiempo -->
+                <section class="card time-control">
                     <div class="time-header">
                         <div class="time-info">
                             <span id="current-datetime" class="datetime-display">--</span>
-                            <span id="timezone-badge" class="badge">UTC-6</span>
+                            <span class="badge">Hora de Guatemala (UTC-6)</span>
                         </div>
-                        <button id="play-btn" class="play-btn" title="Rewind">⏪</button>
+                        <button id="play-btn" class="play-btn" title="Recorrer hacia atrás" aria-label="Recorrer hacia atrás"></button>
                     </div>
-                    
                     <div class="slider-container">
                         <input type="range" id="time-slider" min="0" max="100" value="0" step="1">
                         <div class="slider-labels">
@@ -119,18 +98,23 @@
                             <span id="slider-end">--</span>
                         </div>
                     </div>
-                </div>
+                </section>
 
-            </div>
-
-            <!-- Gráfica Plotly Histórica -->
-            <div id="chart-section" class="chart-section panel-section" style="display: none;">
-                <div class="chart-header">
-                    <h3 id="chart-title">📈 Histórico</h3>
-
-                </div>
-                <div id="plotly-chart"></div>
-                <div id="chart-tooltip" class="chart-tooltip"></div>
+                <!-- Gráfica Plotly -->
+                <section id="chart-section" class="card chart-section" style="display: none;">
+                    <div class="card-head">
+                        <h3 id="chart-title">Histórico</h3>
+                    </div>
+                    <div id="plotly-chart"></div>
+                    <div id="chart-tooltip" class="chart-tooltip"></div>
+                </section>
+                <!-- Resumen estadístico de la variable -->
+                <section class="card">
+                    <div class="card-head">
+                        <h3 id="stats-title">Resumen</h3>
+                    </div>
+                    <div id="peak-summary" class="peak-summary"></div>
+                </section>
             </div>
 
             <div class="social-footer panel-section">
@@ -151,6 +135,7 @@
 
         <div class="map-column">
             <div id="map-container"></div>
+            <div id="map-error" class="map-error" hidden>No se pudo cargar el mapa base. Revisa que el token de Mapbox autorice esta URL.</div>
         </div>
     </div>
 
