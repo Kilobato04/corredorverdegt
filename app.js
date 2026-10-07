@@ -65,10 +65,36 @@ class CorredorVerdeApp {
         const satelliteLayer = makeLayer(bm.satellite);
         darkLayer.addTo(this.map);
 
+        this.clockLayer = L.layerGroup().addTo(this.map);
         L.control.layers({
             [bm.dark.label]: darkLayer,
             [bm.satellite.label]: satelliteLayer
-        }, null, { position: 'topright', collapsed: true }).addTo(this.map);
+        }, { 'Reloj 24 h': this.clockLayer }, { position: 'topright', collapsed: true }).addTo(this.map);
+        this.clockLayer.on('add', () => this.highlightClockHour(
+            this.historicalData[this.currentDataIndex]
+                ? this.convertToGuatemalaTime(this.historicalData[this.currentDataIndex].hour_timestamp_utc).getUTCHours() : -1));
+
+        // Panel de picos (esquina inferior izquierda del mapa)
+        const PeaksControl = L.Control.extend({
+            options: { position: 'bottomleft' },
+            onAdd: () => {
+                const div = L.DomUtil.create('div', 'peaks-ctl');
+                L.DomEvent.disableClickPropagation(div);
+                L.DomEvent.disableScrollPropagation(div);
+                div.addEventListener('click', (e) => {
+                    if (e.target.closest('.pk-toggle')) {
+                        this.peaksCollapsed = !this.peaksCollapsed;
+                        this.renderPeaks();
+                        return;
+                    }
+                    const row = e.target.closest('.pk-row');
+                    if (row) { this.stopPlay(); this.updateVisualization(+row.dataset.i); }
+                });
+                this.peaksEl = div;
+                return div;
+            }
+        });
+        new PeaksControl().addTo(this.map);
 
         // Si Mapbox rechaza el token (URL no autorizada), mostrar aviso en el mapa
         let loaded = 0, errors = 0;
@@ -342,6 +368,8 @@ class CorredorVerdeApp {
         this.currentVariable = v;
         this.computeDayStats();
         this.renderCalendar();
+        this.renderClock();
+        this.renderPeaks();
         if (this.historicalData.length === 0) {
             this.renderVarCards(this.allData[this.allData.length - 1]);
             return;
@@ -359,6 +387,9 @@ class CorredorVerdeApp {
 
         const chartEl = document.getElementById('chart-section');
         const timeEl = document.querySelector('.time-control');
+        this.currentDataIndex = Math.max(0, this.historicalData.length - 1);
+        this.renderClock();
+        this.renderPeaks();
         if (this.historicalData.length === 0) {
             if (timeEl) timeEl.style.display = 'none';
             this.showEmptyChart('Selecciona en el calendario uno o más días en verde');
@@ -725,24 +756,54 @@ class CorredorVerdeApp {
         if (slider) slider.value = index;
     }
 
+    // ==================================================
+    // MAPA: marcador en alerta + etiqueta flotante
+    // ==================================================
     updateMarker(data) {
-        const value = data[this.currentVariable];
-        const color = getColorForValue(this.currentVariable, value);
-        const radius = getRadiusForValue(this.currentVariable, value);
+        const v = this.currentVariable;
+        const vc = VARIABLES[v];
+        const value = this.valueOf(data, v);
+        const has = value !== null;
+        const color = has ? getColorForValue(v, value) : '#64748b';
+        const radius = has ? getRadiusForValue(v, value) : 8;
+        const dec = vc.decimals ?? 1;
+        const thr = this.threshold ? this.threshold.value : null;
+        const alert = has && thr !== null && value > thr && this.isValidHour(data);
 
-        if (this.marker) this.map.removeLayer(this.marker);
-        this.marker = L.circleMarker([SENSOR_LOCATION.lat, SENSOR_LOCATION.lon], {
-            radius, fillColor: color, color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.8
-        }).addTo(this.map);
+        // Halo proporcional a cuánto se supera el umbral (20 % sobre el umbral = halo máximo)
+        const excess = alert ? Math.min(1, (value - thr) / Math.max(Math.abs(thr) * 0.2, 1e-6)) : 0;
+        const halo = Math.round(radius * 2 + 24 + excess * 60);
+        const valTxt = has ? value.toLocaleString('es-GT', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : '--';
+        const catTxt = !has ? 'Sin dato'
+            : alert && this.threshold.relative ? 'Valor alto'
+            : getCategoryForValue(v, value);
 
-        const varConfig = VARIABLES[this.currentVariable];
+        const lblHtml = `<b>${valTxt} ${vc.unit}</b><small>${catTxt}</small>`;
+        if (!this.marker) {
+            const html = `<div class="sm-marker"><span class="sm-halo"></span><span class="sm-dot"></span><span class="sm-lbl"></span></div>`;
+            const iconObj = L.divIcon({ className: 'sm-icon', html, iconSize: [0, 0], iconAnchor: [0, 0] });
+            this.marker = L.marker([SENSOR_LOCATION.lat, SENSOR_LOCATION.lon], { icon: iconObj, zIndexOffset: 1000 })
+                .addTo(this.map)
+                .bindPopup('', { offset: [0, -10] });
+        }
+        // Actualizar en sitio (sin recrear el ícono) para que el halo siga pulsando durante el rewind
+        const root = this.marker.getElement && this.marker.getElement();
+        const mk = root && root.querySelector('.sm-marker');
+        if (mk) {
+            mk.classList.toggle('alert', alert);
+            mk.style.setProperty('--r', `${radius}px`);
+            mk.style.setProperty('--c', color);
+            mk.style.setProperty('--halo', `${halo}px`);
+            mk.querySelector('.sm-lbl').innerHTML = lblHtml;
+        }
+
         const guatemalaTime = this.convertToGuatemalaTime(data.hour_timestamp_utc);
         const fmt = (x, d = 1) => x == null || !Number.isFinite(+x) ? '--' : Number(x).toFixed(d);
-        this.marker.bindPopup(`
+        this.marker.setPopupContent(`
             <div class="popup">
                 <h4>${SENSOR_LOCATION.name}</h4>
                 <div class="p-sub">${SENSOR_LOCATION.displayName} · ${this.formatFullDate(guatemalaTime)}</div>
-                <div class="p-val" style="color:${color};">${icon(varConfig.icon)}${fmt(value, varConfig.decimals ?? 1)} ${varConfig.unit}</div>
+                <div class="p-val" style="color:${color};">${icon(vc.icon)}${valTxt} ${vc.unit}</div>
                 <div class="p-extra">
                     <b>AQI:</b> ${data.aqi ?? '--'} (${data.aqi_category ?? '--'})<br>
                     <b>Contaminante principal:</b> ${data.aqi_pollutant ?? '--'}<br>
@@ -750,6 +811,134 @@ class CorredorVerdeApp {
                 </div>
             </div>
         `);
+
+        this.highlightClockHour(this.convertToGuatemalaTime(data.hour_timestamp_utc).getUTCHours());
+    }
+
+    // ==================================================
+    // MAPA: reloj de 24 h alrededor del sensor
+    // Cada segmento = una hora del día; color = promedio de esa hora en los días seleccionados;
+    // arco rojo exterior = horas sobre el umbral en esa hora del día (más grueso = más frecuente)
+    // ==================================================
+    renderClock() {
+        if (!this.clockLayer) return;
+        this.clockLayer.clearLayers();
+        this.clockMarker = null;
+        if (this.historicalData.length === 0) return;
+
+        const v = this.currentVariable;
+        const vc = VARIABLES[v];
+        const thr = this.threshold ? this.threshold.value : Infinity;
+        const hours = Array.from({ length: 24 }, () => ({ n: 0, sum: 0, max: null, over: 0 }));
+        this.historicalData.forEach(d => {
+            const x = this.valueOf(d, v);
+            if (x === null || !this.isValidHour(d)) return;
+            const h = hours[this.convertToGuatemalaTime(d.hour_timestamp_utc).getUTCHours()];
+            h.n++; h.sum += x;
+            if (h.max === null || x > h.max) h.max = x;
+            if (x > thr) h.over++;
+        });
+        const maxOver = Math.max(1, ...hours.map(h => h.over));
+        const dec = vc.decimals ?? 1;
+        const f = x => x === null ? '--' : x.toLocaleString('es-GT', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+
+        const S = 300, c = S / 2, rIn = 82, rOut = 104, gap = 0.012;
+        const pt = (r, a) => `${(c + r * Math.cos(a)).toFixed(2)},${(c + r * Math.sin(a)).toFixed(2)}`;
+        const arc = (r0, r1, a0, a1) =>
+            `M${pt(r1, a0)} A${r1},${r1} 0 0 1 ${pt(r1, a1)} L${pt(r0, a1)} A${r0},${r0} 0 0 0 ${pt(r0, a0)} Z`;
+
+        let segs = '', peaks = '';
+        hours.forEach((h, i) => {
+            const a0 = (i / 24) * 2 * Math.PI - Math.PI / 2 + gap;
+            const a1 = ((i + 1) / 24) * 2 * Math.PI - Math.PI / 2 - gap;
+            const mean = h.n ? h.sum / h.n : null;
+            const fill = mean === null ? '#223049' : getColorForValue(v, mean);
+            const hh = String(i).padStart(2, '0');
+            const tip = h.n
+                ? `${hh}:00 · promedio ${f(mean)} ${vc.unit} · máx ${f(h.max)} ${vc.unit}` +
+                  (Number.isFinite(thr) ? ` · ${h.over} h sobre ${this.threshold.text}` : '') + ` · ${h.n} h con datos`
+                : `${hh}:00 · sin datos`;
+            segs += `<path class="seg" data-h="${i}" d="${arc(rIn, rOut, a0, a1)}" fill="${fill}" fill-opacity="${mean === null ? 0.5 : 0.85}"><title>${tip}</title></path>`;
+            if (h.over > 0) {
+                const w = 3 + 7 * (h.over / maxOver);
+                peaks += `<path class="pk-arc" d="${arc(rOut + 3, rOut + 3 + w, a0, a1)}"><title>${tip}</title></path>`;
+            }
+        });
+        const labels = [0, 6, 12, 18].map(hh => {
+            const a = (hh / 24) * 2 * Math.PI - Math.PI / 2;
+            const [x, y] = pt(rOut + 24, a).split(',');
+            return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle">${String(hh).padStart(2, '0')}h</text>`;
+        }).join('');
+
+        const svg = `<svg class="clock" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
+            <circle cx="${c}" cy="${c}" r="${(rIn + rOut) / 2}" class="clock-track" />
+            ${segs}${peaks}${labels}
+            <text x="${c}" y="${S - 4}" text-anchor="middle" class="clock-cap">Patrón 24 h · promedio por hora</text>
+        </svg>`;
+        this.clockMarker = L.marker([SENSOR_LOCATION.lat, SENSOR_LOCATION.lon], {
+            icon: L.divIcon({ className: 'clock-icon', html: svg, iconSize: [S, S], iconAnchor: [c, c] }),
+            interactive: false,
+            keyboard: false,
+            zIndexOffset: -100
+        }).addTo(this.clockLayer);
+        this.highlightClockHour(this.historicalData[this.currentDataIndex]
+            ? this.convertToGuatemalaTime(this.historicalData[this.currentDataIndex].hour_timestamp_utc).getUTCHours() : -1);
+    }
+
+    highlightClockHour(h) {
+        const el = this.clockMarker && this.clockMarker.getElement && this.clockMarker.getElement();
+        if (!el) return;
+        el.querySelectorAll('.seg.current').forEach(s => s.classList.remove('current'));
+        const seg = el.querySelector(`.seg[data-h="${h}"]`);
+        if (seg) seg.classList.add('current');
+    }
+
+    // ==================================================
+    // MAPA: panel con los 5 picos de la selección (clic = saltar a ese momento)
+    // ==================================================
+    renderPeaks() {
+        const el = this.peaksEl;
+        if (!el) return;
+        const v = this.currentVariable;
+        const vc = VARIABLES[v];
+        const rel = this.threshold && this.threshold.relative;
+        const thr = this.threshold ? this.threshold.value : Infinity;
+        const head = `<div class="pk-head">${icon(vc.icon)}<span>${rel ? 'Valores más altos' : 'Picos de la selección'} · ${vc.short || vc.label}</span>
+            <button type="button" class="pk-toggle" aria-label="Contraer">${this.peaksCollapsed ? '+' : '–'}</button></div>`;
+
+        if (this.historicalData.length === 0) {
+            el.innerHTML = head + '<div class="pk-empty">Selecciona días en el calendario</div>';
+            el.classList.toggle('collapsed', !!this.peaksCollapsed);
+            return;
+        }
+
+        // Ordenar de mayor a menor y quedarse con eventos separados (≥ 3 h entre sí)
+        const rows = this.historicalData
+            .map((d, i) => ({ i, ts: d.hour_timestamp_utc, x: this.valueOf(d, v), ok: this.isValidHour(d) }))
+            .filter(r => r.x !== null && r.ok)
+            .sort((a, b) => b.x - a.x);
+        const picked = [];
+        for (const r of rows) {
+            if (picked.every(p => Math.abs(p.ts - r.ts) >= 3 * 3600)) picked.push(r);
+            if (picked.length === 5) break;
+        }
+        const dec = vc.decimals ?? 1;
+        const list = picked.map((r, k) => {
+            const over = r.x > thr;
+            const d = this.convertToGuatemalaTime(r.ts);
+            return `<li><button type="button" class="pk-row${over ? ' over' : ''}" data-i="${r.i}">
+                <span class="pk-rank">${k + 1}</span>
+                <span class="pk-when">${this.keyToLabel(this.dayKey(r.ts))} · ${this.hourLabel(r.ts)}</span>
+                <span class="pk-val">${r.x.toLocaleString('es-GT', { minimumFractionDigits: dec, maximumFractionDigits: dec })} ${vc.unit}</span>
+            </button></li>`;
+        }).join('');
+        const anyOver = picked.some(r => r.x > thr);
+        const foot = !this.threshold ? ''
+            : rel ? `Percentil ${this.threshold.percentile} del historial: ${this.threshold.text}`
+            : anyOver ? `En rojo: sobre ${this.threshold.text} · promedios horarios`
+            : `Ninguno supera ${this.threshold.text} en la selección`;
+        el.innerHTML = head + `<ol class="pk-list">${list}</ol><div class="pk-foot">${foot}</div>`;
+        el.classList.toggle('collapsed', !!this.peaksCollapsed);
     }
 
     updateInfoPanel(data) {
