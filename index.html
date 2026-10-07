@@ -54,7 +54,7 @@
             </div>
 
             <div id="loading-overlay" class="loading panel-section">
-                <div class="spinner"></div>Obteniendo datos históricos...
+                <div class="spinner"></div>Consultando historial disponible...
             </div>
 
             <div id="controls-area" class="controls-section panel-section" style="display: none;">
@@ -74,15 +74,30 @@
                 </div>
 
                 <div class="control-group">
-                    <label class="control-label">Periodo Histórico</label>
-                    <select id="period-selector" class="control-select">
-                        <option value="7">Últimos 7 días</option>
-                        <option value="10">Últimos 10 días</option>
-                        <option value="20" selected>Últimos 20 días</option>
-                        <option value="40">Últimos 40 días</option>
-                        <option value="60">Últimos 60 días</option>
-                        <option value="80">Últimos 80 días</option>
-                    </select>
+                    <label class="control-label">Disponibilidad de datos</label>
+                    <div id="calendar" class="calendar">
+                        <div class="cal-head">
+                            <button type="button" id="cal-prev" class="cal-nav" aria-label="Mes anterior">‹</button>
+                            <div class="cal-title">
+                                <span id="cal-month">--</span>
+                                <small id="cal-month-summary">--</small>
+                            </div>
+                            <button type="button" id="cal-next" class="cal-nav" aria-label="Mes siguiente">›</button>
+                        </div>
+                        <div class="cal-weekdays"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+                        <div id="cal-grid" class="cal-grid"></div>
+                    </div>
+                    <div class="cal-legend">
+                        <span><i class="lg-full"></i>Completo</span>
+                        <span><i class="lg-partial"></i>Parcial</span>
+                        <span><i class="lg-none"></i>Sin datos</span>
+                        <span><i class="lg-sel"></i>Seleccionado</span>
+                    </div>
+                    <div class="cal-actions">
+                        <button type="button" id="sel-last7" class="cal-btn">Últimos 7 días</button>
+                        <button type="button" id="sel-month" class="cal-btn">Mes completo</button>
+                        <button type="button" id="sel-clear" class="cal-btn">Limpiar</button>
+                    </div>
                     <div id="data-coverage" class="data-coverage"></div>
                 </div>
 
