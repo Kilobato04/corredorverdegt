@@ -2,9 +2,10 @@
 // CONSTANTES - CORREDOR VERDE GUATEMALA
 // =====================================================
 
-// Ubicación del sensor SMAA_002
+// Ubicación del dispositivo (deviceID SMAA_002 en la API)
 const SENSOR_LOCATION = {
     id: 'SMAA_002',
+    displayName: 'Dispositivo SMAA 02',   // nombre legible que se muestra en pantalla
     name: 'Estación Corredor Verde',
     lat: 14.615641,
     lon: -90.556407,
@@ -32,24 +33,19 @@ const MAP_CONFIG = {
     zoom: 14,
     minZoom: 12,
     maxZoom: 18,
-    // Mapas base: Mapbox (principal) + CARTO (respaldo automático si Mapbox rechaza el token)
+    // Mapas base (Mapbox)
     basemaps: {
         dark: {
-            label: '🌑 Dark',
+            label: 'Mapa oscuro',
             url: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
             attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | Smability',
             tileSize: 512, zoomOffset: -1
         },
         satellite: {
-            label: '🛰️ Satélite',
+            label: 'Satélite',
             url: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
             attribution: '&copy; <a href="https://www.mapbox.com/about/maps/">Mapbox</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; Maxar | Smability',
             tileSize: 512, zoomOffset: -1
-        },
-        fallback: {
-            label: '🌑 Dark (CARTO)',
-            url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-            attribution: '&copy; <a href="https://carto.com/">CARTO</a> | Smability'
         }
     }
 };
@@ -60,8 +56,35 @@ const HISTORY_CONFIG = {
     lookbackSteps: [365, 180, 120, 90, 60, 40, 20],
     fullDayHours: 18,        // un día con ≥18 h de datos se marca como "completo"
     peakManyHours: 3,        // ≥3 h sobre el umbral en un día = varios picos (rojo); 1–2 h = pico aislado (naranja)
-    defaultSelectionDays: 7  // al abrir, se seleccionan los últimos 7 días con datos
+    defaultSelectionDays: 7, // al abrir, se seleccionan los últimos 7 días con datos
+    minCompleteness: 50      // horas con data_completeness < 50% no cuentan para picos ni estadística
 };
+
+// Antigüedad del último dato (horas) para el indicador de estado
+const FRESHNESS = { liveHours: 2, recentHours: 24 };
+
+// Orden de las tarjetas de variables
+const VARIABLE_ORDER = ['noise_avg', 'aqi', 'pm25_avg', 'pm10_avg', 'o3_avg', 'co_avg', 'temperature_avg', 'humidity_avg'];
+
+// Iconos SVG (línea, 24×24, heredan el color del texto)
+const ICONS = {
+    noise: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>',
+    particles: '<circle cx="6" cy="7" r="1.6"/><circle cx="13" cy="5" r="1.1"/><circle cx="18" cy="9" r="1.8"/><circle cx="9" cy="13" r="2.2"/><circle cx="16" cy="16" r="1.3"/><circle cx="6" cy="19" r="1.2"/><circle cx="12" cy="20" r="0.9"/>',
+    ozone: '<path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4.75 4.75 0 0 1-.5 9.5H7z"/>',
+    co: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    thermometer: '<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/><path d="M11.5 10v7"/>',
+    droplet: '<path d="M12 2.7 6.3 8.4a8 8 0 1 0 11.4 0z"/>',
+    gauge: '<path d="M4.9 19a9 9 0 1 1 14.2 0"/><path d="m12 14 4-5"/><circle cx="12" cy="14" r="1.2"/>',
+    chart: '<path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/>',
+    calendar: '<rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/>',
+    rewind: '<path d="M11 19 2 12l9-7v14z"/><path d="M22 19l-9-7 9-7v14z"/>',
+    pause: '<rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/>',
+    pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+};
+function icon(name, cls = 'ic') {
+    return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+}
 
 // Variables disponibles para visualización
 const VARIABLES = {
@@ -69,7 +92,9 @@ const VARIABLES = {
         label: 'Ruido',
         alert: { value: 70, text: '70 dBA' },          // categoría 'Muy ruidoso' (ajustable a la norma aplicable)
         unit: 'dBA',
-        icon: '🔊',
+        icon: 'noise',
+        short: 'Ruido',
+        decimals: 1,
         colorScale: [
             { max: 50, color: '#00e400', label: 'Silencioso' },
             { max: 60, color: '#ffff00', label: 'Moderado' },
@@ -82,7 +107,9 @@ const VARIABLES = {
         label: 'PM2.5',
         alert: { value: 35.4, text: '35.4 µg/m³' },     // 'Insalubre para grupos sensibles' (EPA, 24 h)
         unit: 'µg/m³',
-        icon: '💨',
+        icon: 'particles',
+        short: 'PM2.5',
+        decimals: 1,
         colorScale: [
             { max: 12, color: '#00e400', label: 'Buena' },
             { max: 35.4, color: '#ffff00', label: 'Moderada' },
@@ -96,7 +123,9 @@ const VARIABLES = {
         label: 'PM10',
         alert: { value: 154, text: '154 µg/m³' },
         unit: 'µg/m³',
-        icon: '💨',
+        icon: 'particles',
+        short: 'PM10',
+        decimals: 1,
         colorScale: [
             { max: 54, color: '#00e400', label: 'Buena' },
             { max: 154, color: '#ffff00', label: 'Moderada' },
@@ -110,7 +139,9 @@ const VARIABLES = {
         label: 'Ozono',
         alert: { value: 70, text: '70 ppb' },
         unit: 'ppb',
-        icon: '🌫️',
+        icon: 'ozone',
+        short: 'Ozono',
+        decimals: 1,
         colorScale: [
             { max: 54, color: '#00e400', label: 'Buena' },
             { max: 70, color: '#ffff00', label: 'Moderada' },
@@ -121,10 +152,12 @@ const VARIABLES = {
         ]
     },
     'co_avg': {
-        label: 'Monóxido de Carbono',
+        label: 'Monóxido de carbono',
         alert: { value: 9400, text: '9,400 ppb' },
         unit: 'ppb',
-        icon: '⚠️',
+        icon: 'co',
+        short: 'CO',
+        decimals: 0,
         colorScale: [
             { max: 4400, color: '#00e400', label: 'Buena' },
             { max: 9400, color: '#ffff00', label: 'Moderada' },
@@ -138,7 +171,9 @@ const VARIABLES = {
         label: 'Temperatura',
         alert: { percentile: 95 },                        // sin umbral de salud: 5% de horas más cálidas del historial
         unit: '°C',
-        icon: '🌡️',
+        icon: 'thermometer',
+        short: 'Temperatura',
+        decimals: 1,
         colorScale: [
             { max: 10, color: '#1e3a8a', label: 'Muy Frío' },
             { max: 15, color: '#3b82f6', label: 'Frío' },
@@ -153,7 +188,9 @@ const VARIABLES = {
         label: 'Humedad',
         alert: { percentile: 95 },
         unit: '%',
-        icon: '💧',
+        icon: 'droplet',
+        short: 'Humedad',
+        decimals: 0,
         colorScale: [
             { max: 30, color: '#fef08a', label: 'Seco' },
             { max: 50, color: '#bae6fd', label: 'Confortable' },
@@ -166,7 +203,9 @@ const VARIABLES = {
         label: 'AQI',
         alert: { value: 100, text: 'AQI 100' },
         unit: '',
-        icon: '📈',
+        icon: 'gauge',
+        short: 'AQI',
+        decimals: 0,
         colorScale: [
             { max: 50, color: '#00e400', label: 'Buena' },
             { max: 100, color: '#ffff00', label: 'Moderada' },
@@ -189,6 +228,14 @@ function getColorForValue(variable, value) {
         }
     }
     return varConfig.colorScale[varConfig.colorScale.length - 1].color;
+}
+
+// Categoría (texto) según valor
+function getCategoryForValue(variable, value) {
+    const varConfig = VARIABLES[variable];
+    if (!varConfig) return '';
+    const scale = varConfig.colorScale.find(s => value <= s.max) || varConfig.colorScale[varConfig.colorScale.length - 1];
+    return scale.label;
 }
 
 // Función para obtener el radio del marcador según intensidad
