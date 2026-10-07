@@ -196,6 +196,16 @@ body {
     box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
 }
 
+/* Cobertura real de datos devuelta por la API */
+.data-coverage {
+    margin-top: 8px;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+.data-coverage.warn { color: #fbbf24; }
+.control-select:disabled { opacity: 0.6; cursor: wait; }
+
 /* 6. TIEMPO Y SLIDER */
 .time-control {
     background: rgba(15, 20, 25, 0.5);
