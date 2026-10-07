@@ -280,6 +280,82 @@ button { font-family: inherit; }
 }
 .map-error[hidden] { display: none; }
 
+/* 12b. MAPA: marcador, alerta y etiqueta */
+.sm-icon { background: none; border: none; }
+.sm-marker { position: relative; width: 0; height: 0; }
+.sm-dot, .sm-halo {
+    position: absolute; left: 0; top: 0; border-radius: 50%; transform: translate(-50%, -50%);
+}
+.sm-dot {
+    width: calc(var(--r) * 2); height: calc(var(--r) * 2);
+    background: var(--c); border: 2px solid #ffffff; opacity: 0.9;
+    transition: width 0.2s, height 0.2s;
+}
+.sm-halo { display: none; width: var(--halo); height: var(--halo); border: 3px solid var(--red); }
+.sm-marker.alert .sm-halo { display: block; animation: halo-pulse 1.4s ease-out infinite; }
+.sm-marker.alert .sm-dot { border-color: var(--red); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.35); }
+@keyframes halo-pulse {
+    0%   { transform: translate(-50%, -50%) scale(0.55); opacity: 0.95; }
+    100% { transform: translate(-50%, -50%) scale(1.25); opacity: 0; }
+}
+.sm-lbl {
+    position: absolute; left: 0; top: calc(var(--r) + 6px); transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; white-space: nowrap;
+    background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px;
+    font-family: var(--font); color: var(--text); line-height: 1.15; pointer-events: none;
+}
+.sm-lbl b { font-size: 0.8rem; }
+.sm-lbl small { font-family: var(--font-narrow); font-size: 0.66rem; color: var(--muted); }
+.sm-marker.alert .sm-lbl { border-color: var(--red); }
+.sm-marker.alert .sm-lbl b { color: #fca5a5; }
+
+/* 12c. MAPA: reloj de 24 h */
+.clock-icon { background: none; border: none; pointer-events: none; }
+.clock { overflow: visible; pointer-events: none; }
+.clock .clock-track { fill: none; stroke: rgba(11, 19, 32, 0.55); stroke-width: 30; }
+.clock .seg { stroke: #0b1320; stroke-width: 1; pointer-events: auto; cursor: help; }
+.clock .seg.current { stroke: var(--cyan); stroke-width: 3; }
+.clock .pk-arc { fill: var(--red); pointer-events: auto; cursor: help; }
+.clock text {
+    font-family: var(--font); font-size: 11px; font-weight: 700; fill: var(--muted);
+    paint-order: stroke; stroke: #0b1320; stroke-width: 3px;
+}
+.clock .clock-cap { font-family: var(--font-narrow); font-size: 10px; font-weight: 400; }
+
+/* 12d. MAPA: panel de picos */
+.peaks-ctl {
+    width: 250px; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    color: var(--text); font-family: var(--font); overflow: hidden;
+}
+.pk-head {
+    display: flex; align-items: center; gap: 7px; padding: 8px 10px;
+    font-family: var(--font-narrow); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+    color: var(--green); border-bottom: 1px solid var(--line);
+}
+.pk-head span { flex: 1; }
+.pk-toggle {
+    width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--line);
+    background: var(--card-2); color: var(--text); cursor: pointer; line-height: 1; font-size: 0.85rem;
+}
+.peaks-ctl.collapsed .pk-list, .peaks-ctl.collapsed .pk-foot, .peaks-ctl.collapsed .pk-empty { display: none; }
+.peaks-ctl.collapsed .pk-head { border-bottom: none; }
+.pk-list { list-style: none; padding: 4px; }
+.pk-row {
+    width: 100%; display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: center;
+    padding: 6px 6px; border: none; border-radius: 6px; background: none; color: var(--text);
+    cursor: pointer; text-align: left; font-size: 0.76rem;
+}
+.pk-row:hover { background: var(--card-2); }
+.pk-rank {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--card-2); color: var(--muted);
+    font-size: 0.66rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.pk-row.over .pk-rank { background: var(--red); color: #ffffff; }
+.pk-when { color: var(--muted); }
+.pk-val { font-weight: 700; white-space: nowrap; }
+.pk-row.over .pk-val { color: #fca5a5; }
+.pk-foot, .pk-empty { padding: 6px 10px 8px; font-family: var(--font-narrow); font-size: 0.68rem; color: var(--dim); }
+
 /* 13. RESPONSIVE */
 @media (max-width: 1024px) {
     .info-column { width: 340px; flex: 0 0 340px; }
@@ -293,4 +369,5 @@ button { font-family: inherit; }
     }
     .info-column.collapsed { transform: translateY(-100%); }
     #plotly-chart { height: 160px; }
+    .peaks-ctl { width: 210px; }
 }
