@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -135,6 +137,15 @@
 
         <div class="map-column">
             <div id="map-container"></div>
+            <div id="map3d"></div>
+            <div id="view-toggle" class="view-toggle" role="group" aria-label="Vista del mapa">
+                <button type="button" data-view="2d" class="active">2D</button>
+                <button type="button" data-view="3d">3D</button>
+            </div>
+            <div class="note3d-wrap">
+                <div class="legend3d"><i></i>Edificios alcanzados</div>
+                <div id="note3d" class="note3d"></div>
+            </div>
             <div id="map-error" class="map-error" hidden>No se pudo cargar el mapa base. Revisa que el token de Mapbox autorice esta URL.</div>
         </div>
     </div>
