@@ -415,25 +415,38 @@ body {
 
 .chart-tooltip {
     display: none;
-    position: absolute;
-    top: 42px;
-    right: 14px;
+    margin-top: 6px;
     background: rgba(15, 20, 25, 0.95);
     border: 1px solid #38bdf8;
     border-radius: 8px;
-    padding: 6px 10px;
+    padding: 5px 10px;
     font-size: 0.68rem;
     color: #e2e8f0;
-    pointer-events: none;
-    z-index: 10;
     white-space: nowrap;
     box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    backdrop-filter: blur(8px);
+    width: fit-content;
+    max-width: 100%;
 }
 
 .chart-tooltip.visible {
     display: block;
 }
+
+/* Picos en el calendario */
+.cal-day .pk {
+    position: absolute; top: -4px; right: -4px;
+    min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px;
+    background: #f97316; color: #fff; font-size: 0.55rem; font-weight: 700; line-height: 14px;
+    box-shadow: 0 0 0 2px #0f1419;
+}
+.cal-day .pk.many { background: #ef4444; }
+.lg-peak {
+    display: inline-block; min-width: 14px; height: 14px; border-radius: 7px; margin-right: 5px;
+    background: #ef4444; color: #fff; font-size: 0.55rem; line-height: 14px; text-align: center;
+}
+.peak-summary { margin-top: 8px; font-size: 0.72rem; color: #cbd5e1; line-height: 1.45; }
+.peak-summary b { color: #fca5a5; }
+.peak-summary .muted { color: #64748b; }
 
 /* 9. LEYENDA (legacy) */
 .panel-legend-container {
