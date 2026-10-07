@@ -50,6 +50,17 @@ const MAP_CONFIG = {
     }
 };
 
+// Vista 3D (Mapbox GL JS)
+const VIEW3D = {
+    style: 'mapbox://styles/mapbox/dark-v11',
+    zoom: 16.2, pitch: 62, bearing: -25,
+    // Domo de ruido: escala VISUAL (no es un modelo de propagación)
+    noiseMin: 40, noiseMax: 90,     // dBA que corresponden al radio mínimo y máximo
+    domeMin: 30, domeMax: 150,      // radio del domo en metros
+    // Columna para las demás variables
+    colRadius: 12, colMin: 15, colMax: 180   // metros
+};
+
 // Historial: la API sólo acepta "?days=N" (N días hacia atrás desde hoy).
 // El visor pide el periodo más largo que la API responda, en este orden, y con eso arma el calendario.
 const HISTORY_CONFIG = {
