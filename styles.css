@@ -356,6 +356,39 @@ button { font-family: inherit; }
 .pk-row.over .pk-val { color: #fca5a5; }
 .pk-foot, .pk-empty { padding: 6px 10px 8px; font-family: var(--font-narrow); font-size: 0.68rem; color: var(--dim); }
 
+/* 12e. VISTA 3D */
+#map3d { position: absolute; inset: 0; z-index: 3; display: none; background: var(--bg); }
+body.is-3d #map3d { display: block; }
+.view-toggle {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+    display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 3px;
+}
+.view-toggle button {
+    border: none; background: none; color: var(--muted); cursor: pointer;
+    font-family: var(--font); font-weight: 700; font-size: 0.8rem; padding: 6px 14px; border-radius: 6px;
+}
+.view-toggle button.active { background: var(--green); color: #ffffff; }
+.note3d-wrap {
+    position: absolute; left: 12px; bottom: 28px; z-index: 5; display: none; max-width: 300px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px;
+    font-size: 0.76rem; color: var(--text); line-height: 1.45;
+}
+body.is-3d .note3d-wrap { display: block; }
+.note3d span { font-family: var(--font-narrow); font-size: 0.7rem; color: var(--dim); }
+.legend3d { display: flex; align-items: center; gap: 6px; font-family: var(--font-narrow); font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; }
+.legend3d i { width: 10px; height: 10px; border-radius: 2px; background: var(--orange); }
+.lbl3d {
+    display: flex; flex-direction: column; align-items: center; white-space: nowrap;
+    background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px;
+    font-family: var(--font); color: var(--text); line-height: 1.15;
+}
+.lbl3d b { font-size: 0.82rem; }
+.lbl3d small { font-family: var(--font-narrow); font-size: 0.66rem; color: var(--muted); }
+.lbl3d.alert { border-color: var(--red); }
+.lbl3d.alert b { color: #fca5a5; }
+.mapboxgl-ctrl-group { background: var(--card) !important; border: 1px solid var(--line); }
+.mapboxgl-ctrl-icon { filter: invert(1) opacity(0.8); }
+
 /* 13. RESPONSIVE */
 @media (max-width: 1024px) {
     .info-column { width: 340px; flex: 0 0 340px; }
