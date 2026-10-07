@@ -59,6 +59,7 @@ const MAP_CONFIG = {
 const HISTORY_CONFIG = {
     lookbackSteps: [365, 180, 120, 90, 60, 40, 20],
     fullDayHours: 18,        // un día con ≥18 h de datos se marca como "completo"
+    peakManyHours: 3,        // ≥3 h sobre el umbral en un día = varios picos (rojo); 1–2 h = pico aislado (naranja)
     defaultSelectionDays: 7  // al abrir, se seleccionan los últimos 7 días con datos
 };
 
@@ -66,7 +67,8 @@ const HISTORY_CONFIG = {
 const VARIABLES = {
     'noise_avg': {
         label: 'Ruido',
-        unit: 'dBa',
+        alert: { value: 70, text: '70 dBA' },          // categoría 'Muy ruidoso' (ajustable a la norma aplicable)
+        unit: 'dBA',
         icon: '🔊',
         colorScale: [
             { max: 50, color: '#00e400', label: 'Silencioso' },
@@ -78,6 +80,7 @@ const VARIABLES = {
     },
     'pm25_avg': {
         label: 'PM2.5',
+        alert: { value: 35.4, text: '35.4 µg/m³' },     // 'Insalubre para grupos sensibles' (EPA, 24 h)
         unit: 'µg/m³',
         icon: '💨',
         colorScale: [
@@ -91,6 +94,7 @@ const VARIABLES = {
     },
     'pm10_avg': {
         label: 'PM10',
+        alert: { value: 154, text: '154 µg/m³' },
         unit: 'µg/m³',
         icon: '💨',
         colorScale: [
@@ -104,6 +108,7 @@ const VARIABLES = {
     },
     'o3_avg': {
         label: 'Ozono',
+        alert: { value: 70, text: '70 ppb' },
         unit: 'ppb',
         icon: '🌫️',
         colorScale: [
@@ -117,6 +122,7 @@ const VARIABLES = {
     },
     'co_avg': {
         label: 'Monóxido de Carbono',
+        alert: { value: 9400, text: '9,400 ppb' },
         unit: 'ppb',
         icon: '⚠️',
         colorScale: [
@@ -130,6 +136,7 @@ const VARIABLES = {
     },
     'temperature_avg': {
         label: 'Temperatura',
+        alert: { percentile: 95 },                        // sin umbral de salud: 5% de horas más cálidas del historial
         unit: '°C',
         icon: '🌡️',
         colorScale: [
@@ -144,6 +151,7 @@ const VARIABLES = {
     },
     'humidity_avg': {
         label: 'Humedad',
+        alert: { percentile: 95 },
         unit: '%',
         icon: '💧',
         colorScale: [
@@ -156,6 +164,7 @@ const VARIABLES = {
     },
     'aqi': {
         label: 'AQI',
+        alert: { value: 100, text: 'AQI 100' },
         unit: '',
         icon: '📈',
         colorScale: [
