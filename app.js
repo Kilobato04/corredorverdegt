@@ -17,6 +17,9 @@ class CorredorVerdeApp {
         this.historicalData = [];   // horas de los días seleccionados (lo que se grafica)
         this.days = new Map();      // 'YYYY-MM-DD' (hora Guatemala) -> nº de horas con datos
         this.selectedDays = new Set();
+        this.dayStats = new Map();   // 'YYYY-MM-DD' -> { max, maxTs, peakHours } de la variable actual
+        this.threshold = null;       // umbral de alerta vigente
+        this.markerTrace = 1;        // índice del trace del punto marcador en Plotly
         this.lookbackDays = null;   // periodo que respondió la API
         this.calMonth = null;       // { y, m } mes visible en el calendario
 
@@ -155,6 +158,7 @@ class CorredorVerdeApp {
             .filter(d => d && Number.isFinite(d.hour_timestamp_utc))
             .sort((a, b) => a.hour_timestamp_utc - b.hour_timestamp_utc);
         this.indexDays();
+        this.computeDayStats();
         this.updateLastSync();
 
         if (this.allData.length === 0) {
@@ -179,6 +183,49 @@ class CorredorVerdeApp {
             const key = this.dayKey(d.hour_timestamp_utc);
             this.days.set(key, (this.days.get(key) || 0) + 1);
         });
+    }
+
+    // Umbral y picos por día para la variable actual (sobre todo el historial, no sólo la selección)
+    computeDayStats() {
+        const v = this.currentVariable;
+        const alert = VARIABLES[v].alert || {};
+        const values = this.allData.map(d => d[v]).filter(x => x != null && Number.isFinite(+x)).map(Number);
+
+        if (alert.value != null) {
+            this.threshold = { value: alert.value, text: alert.text || String(alert.value), relative: false };
+        } else if (alert.percentile && values.length) {
+            const sorted = [...values].sort((a, b) => a - b);
+            const p = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * alert.percentile / 100))];
+            this.threshold = { value: p, text: `${p.toFixed(1)} ${VARIABLES[v].unit} (P${alert.percentile})`, relative: true };
+        } else {
+            this.threshold = null;
+        }
+
+        this.dayStats.clear();
+        this.allData.forEach(d => {
+            const val = d[v];
+            if (val == null || !Number.isFinite(+val)) return;
+            const key = this.dayKey(d.hour_timestamp_utc);
+            const st = this.dayStats.get(key) || { max: -Infinity, maxTs: null, peakHours: 0 };
+            if (+val > st.max) { st.max = +val; st.maxTs = d.hour_timestamp_utc; }
+            if (this.threshold && +val > this.threshold.value) st.peakHours++;
+            this.dayStats.set(key, st);
+        });
+        this.renderPeakSummary();
+    }
+
+    renderPeakSummary() {
+        const el = document.getElementById('peak-summary');
+        if (!el) return;
+        const vc = VARIABLES[this.currentVariable];
+        if (!this.threshold || this.dayStats.size === 0) { el.innerHTML = ''; return; }
+        const peakDays = [...this.dayStats.entries()].filter(([, s]) => s.peakHours > 0);
+        const top = [...this.dayStats.entries()].sort((a, b) => b[1].max - a[1].max)[0];
+        const topTxt = top ? `máximo <b>${top[1].max.toFixed(1)} ${vc.unit}</b> el ${this.keyToLabel(top[0], true)} a las ${this.hourLabel(top[1].maxTs)}` : '';
+        el.innerHTML = `${vc.icon} ${vc.label}: <b>${peakDays.length}</b> ${peakDays.length === 1 ? 'día' : 'días'} con horas sobre ${this.threshold.text}` +
+            (topTxt ? ` · ${topTxt}` : '') +
+            (this.threshold.relative ? `<br><span class="muted">Umbral relativo: 5% de horas más altas del historial.</span>` : '') +
+            `<br><span class="muted">Valores promedio por hora.</span>`;
     }
 
     applySelection() {
@@ -253,8 +300,19 @@ class CorredorVerdeApp {
             if (this.selectedDays.has(key)) cls.push('selected');
             if (key === todayKey) cls.push('today');
             if (key > todayKey) cls.push('future');
-            const title = hours ? `${this.keyToLabel(key)} · ${hours} h con datos` : `${this.keyToLabel(key)} · sin datos`;
-            html += `<button type="button" class="${cls.join(' ')}" data-key="${key}" title="${title}" ${hours ? '' : 'tabindex="-1"'}>${d}</button>`;
+            const st = this.dayStats.get(key);
+            const vc = VARIABLES[this.currentVariable];
+            let title = hours ? `${this.keyToLabel(key)} · ${hours} h con datos` : `${this.keyToLabel(key)} · sin datos`;
+            let badge = '';
+            if (st && st.maxTs != null) {
+                title += `\nMáx ${vc.label}: ${st.max.toFixed(1)} ${vc.unit} a las ${this.hourLabel(st.maxTs)}`;
+                if (st.peakHours > 0) {
+                    title += `\n${st.peakHours} h sobre ${this.threshold.text}`;
+                    const many = st.peakHours >= HISTORY_CONFIG.peakManyHours;
+                    badge = `<b class="pk${many ? ' many' : ''}">${st.peakHours}</b>`;
+                }
+            }
+            html += `<button type="button" class="${cls.join(' ')}" data-key="${key}" title="${title}" ${hours ? '' : 'tabindex="-1"'}>${d}${badge}</button>`;
         }
         grid.innerHTML = html;
 
@@ -321,29 +379,28 @@ class CorredorVerdeApp {
             this.chartValues.push(d[this.currentVariable] ?? null);
         });
 
-        const trace = {
-            x: this.chartTimestamps,
-            y: this.chartValues,
+        // Un trace por tramo continuo: así ni la línea ni el relleno cruzan los huecos sin datos
+        const base = {
             type: 'scatter',
             mode: 'lines',
-            connectgaps: false,   // los huecos entre días no seleccionados se ven como cortes
             line: { color: '#10b981', width: 1.5, shape: this.historicalData.length > 1000 ? 'linear' : 'spline' },
             fill: 'tozeroy',
             fillcolor: 'rgba(16,185,129,0.08)',
             hovertemplate: `<b>${varConfig.icon} %{y:.1f} ${varConfig.unit}</b><br>%{x|%d %b %Y  %H:%M}<br><extra></extra>`,
-            name: varConfig.label,
             showlegend: false
         };
-
-        // Insertar un null entre horas no consecutivas para cortar la línea en los huecos
-        const xs = [], ys = [];
+        const segments = [];
+        let seg = null;
         this.historicalData.forEach((d, i) => {
-            if (i > 0 && d.hour_timestamp_utc - this.historicalData[i - 1].hour_timestamp_utc > 3 * 3600) {
-                xs.push(this.plotTime(d.hour_timestamp_utc - 1800)); ys.push(null);
+            const prev = this.historicalData[i - 1];
+            if (!seg || d.hour_timestamp_utc - prev.hour_timestamp_utc > 3 * 3600) {
+                seg = { x: [], y: [] };
+                segments.push(seg);
             }
-            xs.push(this.chartTimestamps[i]); ys.push(this.chartValues[i]);
+            seg.x.push(this.chartTimestamps[i]);
+            seg.y.push(this.chartValues[i]);
         });
-        trace.x = xs; trace.y = ys;
+        const traces = segments.map(sg => ({ ...base, x: sg.x, y: sg.y }));
 
         const currentTs = this.chartTimestamps[this.currentDataIndex] || this.chartTimestamps[this.chartTimestamps.length - 1];
         const markerDot = {
@@ -355,6 +412,19 @@ class CorredorVerdeApp {
             hoverinfo: 'skip',
             showlegend: false
         };
+        this.markerTrace = traces.length;
+        traces.push(markerDot);
+
+        const shapes = [{
+            type: 'line', x0: currentTs, x1: currentTs, y0: 0, y1: 1, yref: 'paper',
+            line: { color: '#38bdf8', width: 2, dash: 'dot' }
+        }];
+        if (this.threshold) {
+            shapes.push({
+                type: 'line', xref: 'paper', x0: 0, x1: 1, y0: this.threshold.value, y1: this.threshold.value,
+                line: { color: 'rgba(239,68,68,0.7)', width: 1, dash: 'dash' }
+            });
+        }
 
         const layout = {
             paper_bgcolor: 'rgba(0,0,0,0)',
@@ -381,21 +451,18 @@ class CorredorVerdeApp {
                 zeroline: false,
                 showgrid: true
             },
-            shapes: [{
-                type: 'line', x0: currentTs, x1: currentTs, y0: 0, y1: 1, yref: 'paper',
-                line: { color: '#38bdf8', width: 2, dash: 'dot' }
-            }],
+            shapes,
             hoverlabel: { bgcolor: 'rgba(15,20,25,0.95)', bordercolor: '#38bdf8', font: { color: '#e2e8f0', size: 11 } },
             dragmode: false
         };
 
-        Plotly.newPlot(container, [trace, markerDot], layout, { displayModeBar: false, responsive: true });
+        Plotly.newPlot(container, traces, layout, { displayModeBar: false, responsive: true });
         this.plotlyChart = container;
 
         // Clic en la gráfica: saltar a esa hora
         container.on('plotly_click', (eventData) => {
             const pt = eventData.points && eventData.points[0];
-            if (!pt || pt.curveNumber !== 0) return;
+            if (!pt || pt.curveNumber >= this.markerTrace) return;
             let idx = this.chartTimestamps.indexOf(pt.x);
             if (idx < 0) {   // por si Plotly devuelve la fecha en otro formato: buscar la hora más cercana
                 const t = Date.parse(String(pt.x).replace(' ', 'T').slice(0, 16) + ':00Z');
@@ -433,7 +500,7 @@ class CorredorVerdeApp {
         const val = Number(raw) || 0;
 
         Plotly.relayout(this.plotlyChart, { 'shapes[0].x0': ts, 'shapes[0].x1': ts });
-        Plotly.restyle(this.plotlyChart, { x: [[ts]], y: [[raw]] }, [1]);
+        Plotly.restyle(this.plotlyChart, { x: [[ts]], y: [[raw]] }, [this.markerTrace]);
 
         const tooltip = document.getElementById('chart-tooltip');
         if (tooltip) {
@@ -481,6 +548,8 @@ class CorredorVerdeApp {
         if (varSelect) {
             varSelect.addEventListener('change', (e) => {
                 this.currentVariable = e.target.value;
+                this.computeDayStats();
+                this.renderCalendar();
                 if (this.historicalData.length === 0) return;
                 this.buildChart();
                 this.updateVisualization(this.currentDataIndex);
@@ -629,6 +698,10 @@ class CorredorVerdeApp {
 
     plotTime(utcTimestamp) {
         return this.convertToGuatemalaTime(utcTimestamp).toISOString().slice(0, 16).replace('T', ' ');
+    }
+
+    hourLabel(utcTimestamp) {
+        return this.convertToGuatemalaTime(utcTimestamp).toISOString().slice(11, 16);
     }
 
     keyToDate(key) {
